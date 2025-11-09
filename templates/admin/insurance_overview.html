@@ -1,0 +1,357 @@
+{% extends 'base.html' %}
+{% block title %}전체책임보험현황 - 현대해상30일책임보험전산{% endblock %}
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-3xl font-bold gradient-text">전체책임보험현황</h1>
+        <p class="text-gray-600 mt-2">모든 파트너그룹의 보험 신청 현황을 조회합니다</p>
+      </div>
+      <a href="{{ url_for('admin_dashboard') }}" 
+         class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-medium rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200">
+        <i class="bi bi-arrow-left mr-2"></i>전체대시보드
+      </a>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6">
+          {% for category, message in messages %}
+            <div class="p-4 rounded-xl mb-3 border-l-4 {% if category == 'success' %}bg-green-50 text-green-800 border-green-500{% elif category == 'danger' %}bg-red-50 text-red-800 border-red-500{% elif category == 'warning' %}bg-yellow-50 text-yellow-800 border-yellow-500{% else %}bg-blue-50 text-blue-800 border-blue-500{% endif %}">
+              <div class="flex items-center">
+                <i class="bi {% if category == 'success' %}bi-check-circle-fill{% elif category == 'danger' %}bi-exclamation-circle-fill{% elif category == 'warning' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %} mr-3"></i>
+                <span class="font-medium">{{ message }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Search and Export -->
+    <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl mb-6">
+      <form method="get" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <!-- 시작일 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">시작일</label>
+            <input type="date" name="start_date" value="{{ start_date.strftime('%Y-%m-%d') if start_date else '' }}"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          
+          <!-- 종료일 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">종료일</label>
+            <input type="date" name="end_date" value="{{ end_date.strftime('%Y-%m-%d') if end_date else '' }}"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          
+          <!-- 파트너그룹 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">파트너그룹</label>
+            <select name="partner_group_id" id="partner-group-select"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onchange="updateCompanyList()">
+              <option value="">전체</option>
+              {% for group in partner_groups %}
+              <option value="{{ group.id }}" {% if partner_group_id|string == group.id|string %}selected{% endif %}>
+                {{ group.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- 상사명 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">상사명</label>
+            <select name="company_name" id="company-select"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <option value="">전체</option>
+              {% for member in members %}
+              <option value="{{ member.company_name }}" {% if company_name == member.company_name %}selected{% endif %}>
+                {{ member.company_name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- 가입유무 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">가입유무</label>
+            <select name="status_filter"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <option value="">전체</option>
+              <option value="가입완료" {% if status_filter == '가입완료' %}selected{% endif %}>가입완료</option>
+              <option value="미가입" {% if status_filter == '미가입' %}selected{% endif %}>미가입</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="flex justify-between items-center">
+          <button type="submit" 
+                  class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200">
+            <i class="bi bi-search mr-2"></i>검색
+          </button>
+          
+          <a href="{{ url_for('admin_insurance_overview_export', start_date=start_date.strftime('%Y-%m-%d') if start_date else '', end_date=end_date.strftime('%Y-%m-%d') if end_date else '', partner_group_id=partner_group_id, company_name=company_name, status_filter=status_filter) }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200">
+            <i class="bi bi-file-earmark-excel mr-2"></i>엑셀저장
+          </a>
+        </div>
+      </form>
+    </div>
+
+    <!-- Table -->
+    <div class="glass rounded-xl border border-white/50 backdrop-blur-xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 table-auto">
+          <thead class="bg-gray-50/80">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[50px]">순</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[150px]">파트너그룹(상호)</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">상사명</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">신청시간</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">가입희망일자</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">가입시간</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">종료시간</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">조합승인시간</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">피보험자코드</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">계약자코드</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[110px]">한글차량번호</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">차대번호</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">차량명</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">차량등록일자</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[90px]">보험료</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">보험증권</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[150px]">비고</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">작업</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white/50 divide-y divide-gray-200">
+            {% for app in applications %}
+            <tr class="hover:bg-blue-50/50 transition-colors duration-200" id="row-{{ app.id }}">
+              {% if edit_id == app.id|string %}
+              <!-- Edit Mode -->
+              <form method="post" id="edit-form-{{ app.id }}">
+                <input type="hidden" name="action" value="save">
+                <input type="hidden" name="application_id" value="{{ app.id }}">
+                
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ loop.index }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                  {% if app.partner_group_id %}
+                    {% for pg in partner_groups %}
+                      {% if pg.id == app.partner_group_id %}
+                        {{ pg.name }}
+                      {% endif %}
+                    {% endfor %}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                  {{ app.created_by_member.company_name if app.created_by_member else '-' }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                  {{ app.created_at.strftime('%Y-%m-%d %H:%M:%S') if app.created_at else '-' }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="date" name="desired_start_date" 
+                         value="{{ app.desired_start_date.strftime('%Y-%m-%d') if app.desired_start_date else '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="datetime-local" name="start_at" 
+                         value="{{ app.start_at.strftime('%Y-%m-%dT%H:%M') if app.start_at else '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="datetime-local" name="end_at" 
+                         value="{{ app.end_at.strftime('%Y-%m-%dT%H:%M') if app.end_at else '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="datetime-local" name="approved_at" 
+                         value="{{ app.approved_at.strftime('%Y-%m-%dT%H:%M') if app.approved_at else '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="insured_code" value="{{ app.insured_code or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="contractor_code" value="{{ app.contractor_code or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="car_plate" value="{{ app.car_plate or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="vin" value="{{ app.vin or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="car_name" value="{{ app.car_name or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="date" name="car_registered_at" 
+                         value="{{ app.car_registered_at.strftime('%Y-%m-%d') if app.car_registered_at else '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="number" name="premium" value="{{ app.premium or 0 }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                  {% if app.insurance_policy_path or app.insurance_policy_url %}
+                    <span class="text-green-600">첨부됨</span>
+                  {% else %}
+                    <span class="text-gray-400">-</span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="memo" value="{{ app.memo or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm">
+                  <div class="flex items-center space-x-1">
+                    <button type="submit" 
+                            class="inline-flex items-center px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors"
+                            title="저장">
+                      <i class="bi bi-check mr-1"></i>저장
+                    </button>
+                    <a href="{{ url_for('admin_insurance_overview', start_date=start_date.strftime('%Y-%m-%d') if start_date else '', end_date=end_date.strftime('%Y-%m-%d') if end_date else '', partner_group_id=partner_group_id, company_name=company_name, status_filter=status_filter) }}"
+                       class="inline-flex items-center px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600 transition-colors"
+                       title="취소">
+                      <i class="bi bi-x mr-1"></i>취소
+                    </a>
+                  </div>
+                </td>
+              </form>
+              {% else %}
+              <!-- View Mode -->
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ loop.index }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {% if app.partner_group_id %}
+                  {% for pg in partner_groups %}
+                    {% if pg.id == app.partner_group_id %}
+                      {{ pg.name }}
+                    {% endif %}
+                  {% endfor %}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                {{ app.created_by_member.company_name if app.created_by_member else '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {{ app.created_at.strftime('%Y-%m-%d %H:%M:%S') if app.created_at else '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {{ app.desired_start_date.strftime('%Y-%m-%d') if app.desired_start_date else '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {{ app.start_at.strftime('%Y-%m-%d %H:%M:%S') if app.start_at else '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {{ app.end_at.strftime('%Y-%m-%d %H:%M:%S') if app.end_at else '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {{ app.approved_at.strftime('%Y-%m-%d %H:%M:%S') if app.approved_at else '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ app.insured_code or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ app.contractor_code or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ app.car_plate or '-' }}</td>
+              <td class="px-4 py-3 text-sm text-gray-900 break-all">{{ app.vin or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ app.car_name or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {{ app.car_registered_at.strftime('%Y-%m-%d') if app.car_registered_at else '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {{ '{:,}'.format(app.premium) if app.premium else '-' }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                {% if app.insurance_policy_url %}
+                  <a href="{{ app.insurance_policy_url }}" target="_blank" 
+                     class="text-blue-600 hover:text-blue-800 inline-flex items-center">
+                    <i class="bi bi-file-earmark-pdf mr-1"></i>보기
+                  </a>
+                {% elif app.insurance_policy_path %}
+                  <a href="{{ url_for('serve_insurance_policy', insurance_id=app.id) }}" target="_blank" 
+                     class="text-blue-600 hover:text-blue-800 inline-flex items-center">
+                    <i class="bi bi-file-earmark-pdf mr-1"></i>보기
+                  </a>
+                {% else %}
+                  <span class="text-gray-400">-</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-900 break-words">{{ app.memo or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <div class="flex items-center space-x-1">
+                  <a href="{{ url_for('admin_insurance_overview', edit_id=app.id, start_date=start_date.strftime('%Y-%m-%d') if start_date else '', end_date=end_date.strftime('%Y-%m-%d') if end_date else '', partner_group_id=partner_group_id, company_name=company_name, status_filter=status_filter) }}"
+                     class="inline-flex items-center px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                     title="수정">
+                    <i class="bi bi-pencil mr-1"></i>수정
+                  </a>
+                  <form method="post" class="inline-block" onsubmit="return confirm('정말 삭제하시겠습니까?');">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="application_id" value="{{ app.id }}">
+                    <button type="submit" 
+                            class="inline-flex items-center px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
+                            title="삭제">
+                      <i class="bi bi-trash mr-1"></i>삭제
+                    </button>
+                  </form>
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="18" class="px-4 py-8 text-center text-gray-500">
+                <i class="bi bi-inbox text-4xl mb-2 block"></i>
+                검색 결과가 없습니다.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function updateCompanyList() {
+  const partnerGroupSelect = document.getElementById('partner-group-select');
+  const companySelect = document.getElementById('company-select');
+  const partnerGroupId = partnerGroupSelect.value;
+  
+  // AJAX로 해당 파트너그룹의 회원사 목록 가져오기
+  if (partnerGroupId) {
+    fetch(`/admin/insurance-overview/members?partner_group_id=${partnerGroupId}`)
+      .then(response => response.json())
+      .then(data => {
+        companySelect.innerHTML = '<option value="">전체</option>';
+        data.members.forEach(member => {
+          const option = document.createElement('option');
+          option.value = member.company_name;
+          option.textContent = member.company_name;
+          companySelect.appendChild(option);
+        });
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
+  } else {
+    companySelect.innerHTML = '<option value="">전체</option>';
+  }
+}
+</script>
+{% endblock %}
+

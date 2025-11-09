@@ -1,0 +1,27 @@
+services:
+  hyundai-insurance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hyundai-insurance:local
+    container_name: hyundai-insurance-app
+    ports:
+      - "8901:8901"
+    volumes:
+      - ./data:/app/data
+      - ./static:/app/static
+      - ./uploads:/app/uploads
+      - ./templates:/app/templates
+      - ./app.py:/app/app.py
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-hyundai-secret-key-change-in-production}
+      - FLASK_ENV=production
+      - PORT=8901
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8901/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+

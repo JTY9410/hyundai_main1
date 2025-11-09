@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}관리자페이지{% endblock %}
+{% block content %}
+<div class="min-h-screen py-12 animate-fade-in">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-12 animate-scale-in">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-4">
+        <div>
+          <h1 class="text-4xl font-semibold text-[#1a1a1a] mb-3 tracking-tight">관리자 페이지</h1>
+          <p class="text-[#6b6b6b] text-base">시스템 관리 및 승인 업무를 처리하실 수 있습니다</p>
+        </div>
+        <a href="{{ url_for('dashboard') }}" class="btn-modern btn-secondary">
+          <i class="bi bi-arrow-left"></i>
+          <span class="ml-2">대시보드로</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Admin Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- 회원가입승인 Card -->
+      <a href="{{ url_for('admin_members') }}" class="group glass card-hover block">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-5">
+            <div class="w-12 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center">
+              <i class="bi bi-person-check text-2xl text-white"></i>
+            </div>
+            <i class="bi bi-arrow-right text-xl text-[#9b9b9b] group-hover:text-[#1a1a1a] transition-colors duration-300"></i>
+          </div>
+          <h3 class="text-xl font-semibold text-[#1a1a1a] mb-3 tracking-tight">
+            회원가입승인
+          </h3>
+          <p class="text-[#6b6b6b] text-sm leading-relaxed mb-6">
+            신규 회원가입 신청을 검토하고 승인 처리합니다
+          </p>
+          <div class="mt-4">
+            <div class="btn-action bg-[#1a1a1a] text-white hover:bg-[#4a4a4a]">
+              <span>바로가기</span>
+              <i class="bi bi-arrow-right"></i>
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- 책임보험승인 Card -->
+      <a href="{{ url_for('admin_insurance') }}" class="group glass card-hover block">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-5">
+            <div class="w-12 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center">
+              <i class="bi bi-journal-check text-2xl text-white"></i>
+            </div>
+            <i class="bi bi-arrow-right text-xl text-[#9b9b9b] group-hover:text-[#1a1a1a] transition-colors duration-300"></i>
+          </div>
+          <h3 class="text-xl font-semibold text-[#1a1a1a] mb-3 tracking-tight">
+            책임보험승인
+          </h3>
+          <p class="text-[#6b6b6b] text-sm leading-relaxed mb-6">
+            책임보험 가입 신청을 검토하고 승인 처리합니다
+          </p>
+          <div class="mt-4">
+            <div class="btn-action bg-[#1a1a1a] text-white hover:bg-[#4a4a4a]">
+              <span>바로가기</span>
+              <i class="bi bi-arrow-right"></i>
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- 정산 Card -->
+      <a href="{{ url_for('admin_settlement') }}" class="group glass card-hover block">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-5">
+            <div class="w-12 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center">
+              <i class="bi bi-calculator text-2xl text-white"></i>
+            </div>
+            <i class="bi bi-arrow-right text-xl text-[#9b9b9b] group-hover:text-[#1a1a1a] transition-colors duration-300"></i>
+          </div>
+          <h3 class="text-xl font-semibold text-[#1a1a1a] mb-3 tracking-tight">
+            정산
+          </h3>
+          <p class="text-[#6b6b6b] text-sm leading-relaxed mb-6">
+            월별 보험료 정산 및 청구서를 생성합니다
+          </p>
+          <div class="mt-4">
+            <div class="btn-action bg-[#1a1a1a] text-white hover:bg-[#4a4a4a]">
+              <span>바로가기</span>
+              <i class="bi bi-arrow-right"></i>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+

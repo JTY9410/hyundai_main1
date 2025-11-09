@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% block title %}정산 - {{ partner_group_name }}{% endblock %}
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-3xl font-bold gradient-text">정산</h1>
+        <p class="text-gray-600 mt-2">회원사별 정산 내역을 관리합니다</p>
+      </div>
+      <a href="{{ url_for('partner_admin') }}" 
+         class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-medium rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200">
+        <i class="bi bi-arrow-left mr-2"></i>관리자페이지
+      </a>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6">
+          {% for category, message in messages %}
+            <div class="p-4 rounded-xl mb-3 border-l-4 {% if category == 'success' %}bg-green-50 text-green-800 border-green-500{% elif category == 'danger' %}bg-red-50 text-red-800 border-red-500{% elif category == 'warning' %}bg-yellow-50 text-yellow-800 border-yellow-500{% else %}bg-blue-50 text-blue-800 border-blue-500{% endif %}">
+              <div class="flex items-center">
+                <i class="bi {% if category == 'success' %}bi-check-circle-fill{% elif category == 'danger' %}bi-exclamation-circle-fill{% elif category == 'warning' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %} mr-3"></i>
+                <span class="font-medium">{{ message }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Search and Actions -->
+    <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl mb-6">
+      <form method="get" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <!-- 년도 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">년도</label>
+            <select name="year"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              {% for y in range(2020, 2030) %}
+              <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}년</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- 월 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">월</label>
+            <select name="month"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              {% for m in range(1, 13) %}
+              <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ m }}월</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- 정산 버튼 -->
+          <div class="flex items-end">
+            <button type="submit" 
+                    class="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200">
+              <i class="bi bi-calculator mr-2"></i>정산
+            </button>
+          </div>
+          
+          <!-- 일괄 저장 버튼 -->
+          <div class="flex items-end">
+            <button type="button" onclick="batchSaveInvoices()" 
+                    class="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white font-medium rounded-lg hover:from-purple-600 hover:to-violet-700 transition-all duration-200">
+              <i class="bi bi-save mr-2"></i>청구서 일괄 저장
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Summary -->
+    {% if settlements %}
+    <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-blue-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-600">총 건수</p>
+          <p class="text-2xl font-bold text-blue-600">{{ total_count }}건</p>
+        </div>
+        <div class="bg-green-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-600">총 금액</p>
+          <p class="text-2xl font-bold text-green-600">{{ "{:,}".format(total_amount) }}원</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Table -->
+    <div class="glass rounded-xl border border-white/50 backdrop-blur-xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 table-auto">
+          <thead class="bg-gray-50/80">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[50px]">순</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">상사명</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">대표자</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[80px]">건수</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">금액</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[150px]">비고</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">작업</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">청구서</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white/50 divide-y divide-gray-200">
+            {% for settlement in settlements %}
+            <tr class="hover:bg-blue-50/50 transition-colors duration-200">
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ loop.index }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{{ settlement.company_name }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ settlement.representative }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">{{ settlement.count }}건</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900 font-semibold">{{ "{:,}".format(settlement.amount) }}원</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">-</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <button type="button" onclick="showInvoiceModal({{ loop.index0 }})" 
+                        class="inline-flex items-center px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors">
+                  <i class="bi bi-file-earmark-text mr-1"></i>청구서
+                </button>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <button type="button" onclick="downloadInvoice('{{ settlement.company_name }}')" 
+                        class="inline-flex items-center px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors">
+                  <i class="bi bi-download mr-1"></i>다운로드
+                </button>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                <i class="bi bi-inbox text-4xl mb-2 block"></i>
+                정산 데이터가 없습니다.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Invoice Modal -->
+<div id="invoiceModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 overflow-y-auto">
+  <div class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-900">청구서</h3>
+        <button onclick="closeInvoiceModal()" class="text-gray-500 hover:text-gray-700">
+          <i class="bi bi-x-lg text-2xl"></i>
+        </button>
+      </div>
+      <div id="invoiceContent" class="space-y-4">
+        <!-- Invoice content will be loaded here -->
+      </div>
+      <div class="flex justify-end space-x-3 mt-6">
+        <button onclick="window.print()" 
+                class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+          <i class="bi bi-printer mr-2"></i>저장(PDF)
+        </button>
+        <button onclick="closeInvoiceModal()" 
+                class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+          닫기
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const settlements = {{ settlements | tojson }};
+const partnerGroup = {{ partner_group | tojson if partner_group else '{}' }};
+const year = {{ year }};
+const month = {{ month }};
+
+function showInvoiceModal(index) {
+  const settlement = settlements[index];
+  const invoiceHtml = `
+    <h4 class="text-center text-2xl font-bold text-gray-800 mb-6">${year}년 ${month}월 ${settlement.company_name} 청구서</h4>
+    <div class="text-lg text-gray-700 mb-6 space-y-2">
+      <div>1. 상  사 : <span class="font-semibold">${settlement.company_name}</span></div>
+      <div>2. 대표자  : <span class="font-semibold">${settlement.representative}</span></div>
+      <div>3. 사업자등록번호 : <span class="font-semibold">${settlement.business_number || '-'}</span></div>
+      <div>4. 청구건수 : <span class="font-semibold">${settlement.count}</span></div>
+      <div>5. 청구금액 : <span class="font-semibold">${settlement.amount.toLocaleString()}원</span></div>
+    </div>
+    <div class="mt-8 text-lg text-gray-700 space-y-2">
+      <div>입금계좌 : <span class="font-semibold">${partnerGroup.account_number || '-'}</span></div>
+      <div>입금은행 : <span class="font-semibold">${partnerGroup.bank_name || '-'}</span></div>
+    </div>
+    <div class="mt-12 text-right text-lg font-semibold text-gray-800">
+      ${partnerGroup.name || '파트너그룹'} (직인생략)
+    </div>
+  `;
+  document.getElementById('invoiceContent').innerHTML = invoiceHtml;
+  document.getElementById('invoiceModal').classList.remove('hidden');
+}
+
+function closeInvoiceModal() {
+  document.getElementById('invoiceModal').classList.add('hidden');
+}
+
+function downloadInvoice(companyName) {
+  // 청구서 모달을 열고 인쇄 기능 제공
+  const index = settlements.findIndex(s => s.company_name === companyName);
+  if (index !== -1) {
+    showInvoiceModal(index);
+  }
+}
+
+function batchSaveInvoices() {
+  // 일괄 저장 기능 (모든 청구서 모달을 순차적으로 열기)
+  settlements.forEach((settlement, index) => {
+    if (index === 0) {
+      showInvoiceModal(index);
+    } else {
+      setTimeout(() => {
+        closeInvoiceModal();
+        setTimeout(() => showInvoiceModal(index), 100);
+      }, 2000 * index);
+    }
+  });
+}
+</script>
+{% endblock %}
+

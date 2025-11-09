@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+{% block title %}회원가입승인 - {{ partner_group_name }}{% endblock %}
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-3xl font-bold gradient-text">회원가입승인</h1>
+        <p class="text-gray-600 mt-2">신규 회원가입 신청을 승인합니다</p>
+      </div>
+      <a href="{{ url_for('partner_admin') }}" 
+         class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-medium rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200">
+        <i class="bi bi-arrow-left mr-2"></i>관리자페이지
+      </a>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6">
+          {% for category, message in messages %}
+            <div class="p-4 rounded-xl mb-3 border-l-4 {% if category == 'success' %}bg-green-50 text-green-800 border-green-500{% elif category == 'danger' %}bg-red-50 text-red-800 border-red-500{% elif category == 'warning' %}bg-yellow-50 text-yellow-800 border-yellow-500{% else %}bg-blue-50 text-blue-800 border-blue-500{% endif %}">
+              <div class="flex items-center">
+                <i class="bi {% if category == 'success' %}bi-check-circle-fill{% elif category == 'danger' %}bi-exclamation-circle-fill{% elif category == 'warning' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %} mr-3"></i>
+                <span class="font-medium">{{ message }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Action Buttons -->
+    <div class="mb-6 flex flex-wrap gap-3">
+      <button type="button" onclick="document.getElementById('add-member-modal').classList.remove('hidden')"
+              class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg">
+        <i class="bi bi-person-plus mr-2"></i>회원추가
+      </button>
+      <button type="button" onclick="document.getElementById('excel-upload-input').click()"
+              class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white font-medium rounded-lg hover:from-purple-600 hover:to-violet-700 transition-all duration-200 shadow-md hover:shadow-lg">
+        <i class="bi bi-upload mr-2"></i>엑셀업로드
+      </button>
+      <a href="{{ url_for('partner_admin_member_excel_template') }}"
+         class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg">
+        <i class="bi bi-download mr-2"></i>엑셀업로드양식
+      </a>
+    </div>
+
+    <!-- Excel Upload Form (Hidden) -->
+    <form method="post" enctype="multipart/form-data" id="excel-upload-form" style="display: none;">
+      <input type="hidden" name="action" value="excel_upload">
+      <input type="file" name="excel_file" id="excel-upload-input" accept=".xlsx,.xls" onchange="document.getElementById('excel-upload-form').submit();">
+    </form>
+
+    <!-- Add Member Modal -->
+    <div id="add-member-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-t-xl">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold">회원추가</h2>
+            <button type="button" onclick="document.getElementById('add-member-modal').classList.add('hidden')"
+                    class="text-white hover:text-gray-200 text-2xl font-bold">
+              <i class="bi bi-x"></i>
+            </button>
+          </div>
+        </div>
+        <form method="post" class="p-6">
+          <input type="hidden" name="action" value="add">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">상사명 *</label>
+              <input type="text" name="company_name" required
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">아이디 *</label>
+              <input type="text" name="username" required
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">패스워드 *</label>
+              <input type="password" name="password" required
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">주소</label>
+              <input type="text" name="address"
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">사업자번호 *</label>
+              <input type="text" name="business_number" required
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">법인번호</label>
+              <input type="text" name="corporation_number"
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">대표자</label>
+              <input type="text" name="representative"
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">연락처</label>
+              <input type="text" name="phone"
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">휴대폰</label>
+              <input type="text" name="mobile"
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+              <input type="email" name="email"
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">승인상태</label>
+              <select name="approval_status"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                <option value="신청">신청</option>
+                <option value="승인">승인</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">비고</label>
+              <input type="text" name="memo"
+                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end space-x-3">
+            <button type="button" onclick="document.getElementById('add-member-modal').classList.add('hidden')"
+                    class="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+              취소
+            </button>
+            <button type="submit"
+                    class="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg">
+              <i class="bi bi-check mr-2"></i>추가
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="glass rounded-xl border border-white/50 backdrop-blur-xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 table-auto">
+          <thead class="bg-gray-50/80">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[50px]">순</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">상사명</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">아이디</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">패스워드</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[200px]">주소</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">사업자번호</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">법인번호</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">대표자</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[110px]">연락처</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[110px]">휴대폰</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[180px]">이메일</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[90px]">승인</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">사업자등록증</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[150px]">비고</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">작업</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white/50 divide-y divide-gray-200">
+            {% for member in members %}
+            <tr class="hover:bg-blue-50/50 transition-colors duration-200" id="row-{{ member.id }}">
+              {% if edit_id == member.id|string %}
+              <!-- Edit Mode -->
+              <form method="post" id="edit-form-{{ member.id }}" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="save">
+                <input type="hidden" name="member_id" value="{{ member.id }}">
+                
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ loop.index }}</td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="company_name" value="{{ member.company_name }}" required
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="username" value="{{ member.username }}" required
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="password" name="password" placeholder="변경시에만 입력"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="address" value="{{ member.address or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="business_number" value="{{ member.business_number or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="corporation_number" value="{{ member.corporation_number or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="representative" value="{{ member.representative or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="phone" value="{{ member.phone or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="mobile" value="{{ member.mobile or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="email" name="email" value="{{ member.email or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <select name="approval_status"
+                          class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="신청" {% if member.approval_status == '신청' %}selected{% endif %}>신청</option>
+                    <option value="승인" {% if member.approval_status == '승인' %}selected{% endif %}>승인</option>
+                  </select>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500">
+                  <div class="space-y-2">
+                    {% if member.registration_cert_path %}
+                      <div class="text-xs text-gray-600 mb-1">
+                        <a href="{{ url_for('uploaded_file', filename=member.registration_cert_path.split('/')[-1]) }}" 
+                           class="text-blue-600 hover:text-blue-800 underline">
+                          현재 파일 보기
+                        </a>
+                      </div>
+                    {% endif %}
+                    <input type="file" name="registration_cert" accept=".pdf,.jpg,.jpeg,.png" 
+                           class="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                           form="edit-form-{{ member.id }}">
+                    <p class="text-xs text-gray-400">PDF, JPG, PNG (최대 10MB)</p>
+                  </div>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <input type="text" name="memo" value="{{ member.memo or '' }}"
+                         class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm">
+                  <div class="flex items-center space-x-1">
+                    <button type="submit" 
+                            class="inline-flex items-center px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors"
+                            title="저장">
+                      <i class="bi bi-check mr-1"></i>저장
+                    </button>
+                    <a href="{{ url_for('partner_admin_member_approval') }}"
+                       class="inline-flex items-center px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600 transition-colors"
+                       title="취소">
+                      <i class="bi bi-x mr-1"></i>취소
+                    </a>
+                  </div>
+                </td>
+              </form>
+              {% else %}
+              <!-- View Mode -->
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ loop.index }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{{ member.company_name }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ member.username }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">••••••••</td>
+              <td class="px-4 py-3 text-sm text-gray-900 break-words">{{ member.address or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ member.business_number or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ member.corporation_number or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ member.representative or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ member.phone or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ member.mobile or '-' }}</td>
+              <td class="px-4 py-3 text-sm text-gray-900 break-all">{{ member.email or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                {% if member.approval_status == '승인' %}
+                  <span class="px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">승인</span>
+                {% else %}
+                  <span class="px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">신청</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-center">
+                {% if member.registration_cert_path %}
+                  <a href="{{ url_for('uploaded_file', filename=member.registration_cert_path.split('/')[-1]) }}" 
+                     class="inline-flex items-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors duration-200"
+                     title="{{ member.registration_cert_path.split('/')[-1] }}">
+                    <i class="bi bi-file-earmark-pdf mr-1"></i>
+                    보기
+                  </a>
+                {% else %}
+                  <span class="text-gray-400 text-xs">미첨부</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-900 break-words">{{ member.memo or '-' }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <div class="flex items-center space-x-1">
+                  <a href="{{ url_for('partner_admin_member_approval', edit_id=member.id) }}"
+                     class="inline-flex items-center px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                     title="수정">
+                    <i class="bi bi-pencil mr-1"></i>수정
+                  </a>
+                  <form method="post" class="inline-block" onsubmit="return confirm('정말 삭제하시겠습니까?');">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="member_id" value="{{ member.id }}">
+                    <button type="submit" 
+                            class="inline-flex items-center px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
+                            title="삭제">
+                      <i class="bi bi-trash mr-1"></i>삭제
+                    </button>
+                  </form>
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="15" class="px-4 py-8 text-center text-gray-500">
+                <i class="bi bi-inbox text-4xl mb-2 block"></i>
+                회원가입 신청 내역이 없습니다.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

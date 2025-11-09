@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}대시보드 - {{ partner_group_name or '파트너그룹' }}{% endblock %}
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="text-center mb-8 animate-fade-in">
+      <div class="flex justify-center mb-4">
+        <div class="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 p-4 rounded-2xl shadow-xl">
+          <img src="{{ url_for('static', filename='logo.png') }}" alt="logo" class="h-12 w-12 object-contain">
+        </div>
+      </div>
+      <h1 class="text-4xl font-bold gradient-text mb-2">현대해상30일책임보험가입</h1>
+      {% if partner_group_name %}
+      <p class="text-gray-600 font-medium">{{ partner_group_name }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6">
+          {% for category, message in messages %}
+            <div class="p-4 rounded-xl mb-3 border-l-4 {% if category == 'success' %}bg-green-50 text-green-800 border-green-500{% elif category == 'danger' %}bg-red-50 text-red-800 border-red-500{% elif category == 'warning' %}bg-yellow-50 text-yellow-800 border-yellow-500{% else %}bg-blue-50 text-blue-800 border-blue-500{% endif %}">
+              <div class="flex items-center">
+                <i class="bi {% if category == 'success' %}bi-check-circle-fill{% elif category == 'danger' %}bi-exclamation-circle-fill{% elif category == 'warning' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %} mr-3"></i>
+                <span class="font-medium">{{ message }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Main Menu Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <!-- 책임보험가입 -->
+      <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
+        <div class="text-center">
+          <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-xl mx-auto w-16 h-16 flex items-center justify-center mb-4">
+            <i class="bi bi-shield-plus text-white text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-2">책임보험가입</h3>
+          <p class="text-sm text-gray-600 mb-4">새로운 보험을 신청하고 현황을 확인합니다</p>
+          <a href="{{ url_for('partner_insurance') }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200">
+            <i class="bi bi-arrow-right mr-2"></i>이동
+          </a>
+        </div>
+      </div>
+
+      <!-- 책임보험약관 -->
+      <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
+        <div class="text-center">
+          <div class="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-xl mx-auto w-16 h-16 flex items-center justify-center mb-4">
+            <i class="bi bi-file-text text-white text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-2">책임보험약관</h3>
+          <p class="text-sm text-gray-600 mb-4">보험 약관 및 상품 안내를 확인합니다</p>
+          <a href="{{ url_for('partner_terms') }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200">
+            <i class="bi bi-arrow-right mr-2"></i>이동
+          </a>
+        </div>
+      </div>
+
+      <!-- 관리자페이지 (파트너그룹 관리자만 표시) -->
+      {% if is_partner_admin %}
+      <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
+        <div class="text-center">
+          <div class="bg-gradient-to-br from-purple-500 to-violet-600 p-4 rounded-xl mx-auto w-16 h-16 flex items-center justify-center mb-4">
+            <i class="bi bi-gear text-white text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-2">관리자페이지</h3>
+          <p class="text-sm text-gray-600 mb-4">회원가입 승인 및 보험 승인을 관리합니다</p>
+          <a href="{{ url_for('partner_admin') }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white font-medium rounded-lg hover:from-purple-600 hover:to-violet-700 transition-all duration-200">
+            <i class="bi bi-arrow-right mr-2"></i>이동
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Quick Stats (파트너그룹 관리자 또는 전체관리자가 파트너그룹 선택한 경우 표시) -->
+    {% if is_partner_admin or (is_admin and partner_group_id) %}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl">
+        <div class="flex items-center">
+          <div class="bg-blue-100 p-3 rounded-lg">
+            <i class="bi bi-people text-blue-600 text-xl"></i>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">총 회원사</p>
+            <p class="text-2xl font-bold text-gray-800" id="total-members">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl">
+        <div class="flex items-center">
+          <div class="bg-green-100 p-3 rounded-lg">
+            <i class="bi bi-shield-check text-green-600 text-xl"></i>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">이달 가입</p>
+            <p class="text-2xl font-bold text-gray-800" id="monthly-insurance">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl">
+        <div class="flex items-center">
+          <div class="bg-yellow-100 p-3 rounded-lg">
+            <i class="bi bi-clock text-yellow-600 text-xl"></i>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">승인 대기</p>
+            <p class="text-2xl font-bold text-gray-800" id="pending-approvals">-</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Logout Button -->
+    <div class="text-center">
+      <a href="{{ url_for('logout') }}" 
+         class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-medium rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200">
+        <i class="bi bi-box-arrow-right mr-2"></i>로그아웃
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+// 통계 데이터 표시
+document.addEventListener('DOMContentLoaded', function() {
+  {% if is_partner_admin or (is_admin and partner_group_id) %}
+  document.getElementById('total-members').textContent = '{{ total_members|default(0) }}';
+  document.getElementById('monthly-insurance').textContent = '{{ monthly_insurance|default(0) }}';
+  document.getElementById('pending-approvals').textContent = '{{ pending_approvals|default(0) }}';
+  {% endif %}
+});
+</script>
+{% endblock %}

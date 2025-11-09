@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% block title %}전체대시보드 - 현대해상30일책임보험전산{% endblock %}
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="text-center mb-8 animate-fade-in">
+      <div class="flex justify-center mb-4">
+        <div class="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 p-4 rounded-2xl shadow-xl">
+          <img src="{{ url_for('static', filename='logo.png') }}" alt="logo" class="h-12 w-12 object-contain">
+        </div>
+      </div>
+      <h1 class="text-4xl font-bold gradient-text mb-2">전체대시보드</h1>
+      <p class="text-gray-600 font-medium">현대해상30일책임보험전산 관리시스템</p>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6">
+          {% for category, message in messages %}
+            <div class="p-4 rounded-xl mb-3 border-l-4 {% if category == 'success' %}bg-green-50 text-green-800 border-green-500{% elif category == 'danger' %}bg-red-50 text-red-800 border-red-500{% elif category == 'warning' %}bg-yellow-50 text-yellow-800 border-yellow-500{% else %}bg-blue-50 text-blue-800 border-blue-500{% endif %}">
+              <div class="flex items-center">
+                <i class="bi {% if category == 'success' %}bi-check-circle-fill{% elif category == 'danger' %}bi-exclamation-circle-fill{% elif category == 'warning' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %} mr-3"></i>
+                <span class="font-medium">{{ message }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Main Menu Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <!-- 파트너그룹만들기 -->
+      <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
+        <div class="text-center">
+          <div class="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-xl mx-auto w-16 h-16 flex items-center justify-center mb-4">
+            <i class="bi bi-building-add text-white text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-2">파트너그룹만들기</h3>
+          <p class="text-sm text-gray-600 mb-4">새로운 파트너그룹을 생성하고 관리합니다</p>
+          <a href="{{ url_for('admin_partner_groups') }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200">
+            <i class="bi bi-arrow-right mr-2"></i>이동
+          </a>
+        </div>
+      </div>
+
+      <!-- 전체책임보험현황 -->
+      <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
+        <div class="text-center">
+          <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-xl mx-auto w-16 h-16 flex items-center justify-center mb-4">
+            <i class="bi bi-graph-up text-white text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-2">전체책임보험현황</h3>
+          <p class="text-sm text-gray-600 mb-4">모든 파트너그룹의 보험 현황을 조회합니다</p>
+          <a href="{{ url_for('admin_insurance_overview') }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200">
+            <i class="bi bi-arrow-right mr-2"></i>이동
+          </a>
+        </div>
+      </div>
+
+      <!-- 전체정산페이지 -->
+      <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
+        <div class="text-center">
+          <div class="bg-gradient-to-br from-purple-500 to-violet-600 p-4 rounded-xl mx-auto w-16 h-16 flex items-center justify-center mb-4">
+            <i class="bi bi-calculator text-white text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-2">전체정산페이지</h3>
+          <p class="text-sm text-gray-600 mb-4">파트너그룹별 정산 내역을 관리합니다</p>
+          <a href="{{ url_for('admin_settlement_overview') }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white font-medium rounded-lg hover:from-purple-600 hover:to-violet-700 transition-all duration-200">
+            <i class="bi bi-arrow-right mr-2"></i>이동
+          </a>
+        </div>
+      </div>
+
+      <!-- 전체관리자페이지 -->
+      <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
+        <div class="text-center">
+          <div class="bg-gradient-to-br from-red-500 to-pink-600 p-4 rounded-xl mx-auto w-16 h-16 flex items-center justify-center mb-4">
+            <i class="bi bi-person-gear text-white text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-2">전체관리자페이지</h3>
+          <p class="text-sm text-gray-600 mb-4">시스템 관리자 계정을 관리합니다</p>
+          <a href="{{ url_for('admin_administrators') }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 text-white font-medium rounded-lg hover:from-red-600 hover:to-pink-700 transition-all duration-200">
+            <i class="bi bi-arrow-right mr-2"></i>이동
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl">
+        <div class="flex items-center">
+          <div class="bg-blue-100 p-3 rounded-lg">
+            <i class="bi bi-building text-blue-600 text-xl"></i>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">총 파트너그룹</p>
+            <p class="text-2xl font-bold text-gray-800" id="total-partner-groups">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl">
+        <div class="flex items-center">
+          <div class="bg-green-100 p-3 rounded-lg">
+            <i class="bi bi-people text-green-600 text-xl"></i>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">총 회원사</p>
+            <p class="text-2xl font-bold text-gray-800" id="total-members">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl">
+        <div class="flex items-center">
+          <div class="bg-purple-100 p-3 rounded-lg">
+            <i class="bi bi-shield-check text-purple-600 text-xl"></i>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">총 보험가입</p>
+            <p class="text-2xl font-bold text-gray-800" id="total-insurance">-</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logout Button -->
+    <div class="text-center">
+      <a href="{{ url_for('logout') }}" 
+         class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-medium rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200">
+        <i class="bi bi-box-arrow-right mr-2"></i>로그아웃
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+// 통계 데이터 표시
+document.addEventListener('DOMContentLoaded', function() {
+  // 서버에서 전달된 데이터 표시
+  document.getElementById('total-partner-groups').textContent = '{{ total_partner_groups|default(0) }}';
+  document.getElementById('total-members').textContent = '{{ total_members|default(0) }}';
+  document.getElementById('total-insurance').textContent = '{{ total_insurance|default(0) }}';
+});
+</script>
+{% endblock %}
