@@ -5757,6 +5757,147 @@ def partner_admin_settlement():
         flash('페이지 로드 중 오류가 발생했습니다.', 'danger')
         return redirect(url_for('partner_admin'))
 
+
+@app.route('/partner/admin/settlement/export')
+def partner_admin_settlement_export():
+    """파트너 정산 결과를 엑셀로 다운로드"""
+    try:
+        ensure_initialized()
+        import pandas as pd
+        from io import BytesIO
+        
+        # 파트너그룹 관리자만 접근 가능
+        if 'user_type' not in session or session['user_type'] != 'partner_admin':
+            flash('파트너그룹 관리자만 접근 가능합니다.', 'warning')
+            return redirect(url_for('partner_dashboard'))
+        
+        partner_group_id = session.get('partner_group_id')
+        if not partner_group_id:
+            flash('파트너그룹 정보가 없습니다.', 'warning')
+            return redirect(url_for('partner_dashboard'))
+        
+        partner_group = db.session.query(PartnerGroup).filter_by(id=partner_group_id).first()
+        if not partner_group:
+            flash('파트너그룹을 찾을 수 없습니다.', 'warning')
+            return redirect(url_for('partner_dashboard'))
+        
+        partner_group_name = partner_group.name if partner_group else ''
+        
+        # 년도/월 파라미터 처리
+        now = datetime.now(KST)
+        try:
+            year = int(request.args.get('year', now.year))
+        except (ValueError, TypeError):
+            year = now.year
+        try:
+            month = int(request.args.get('month', now.month))
+        except (ValueError, TypeError):
+            month = now.month
+        
+        # 월 유효성 검사
+        if month < 1 or month > 12:
+            month = now.month
+        if year < 2000 or year > 2100:
+            year = now.year
+        
+        # 정산 데이터 계산 (partner_admin_settlement와 동일한 로직)
+        start_period = datetime(year, month, 1, tzinfo=KST)
+        if month == 12:
+            next_month = datetime(year + 1, 1, 1, tzinfo=KST)
+        else:
+            next_month = datetime(year, month + 1, 1, tzinfo=KST)
+        
+        applications = db.session.query(InsuranceApplication).filter(
+            InsuranceApplication.partner_group_id == partner_group_id,
+            InsuranceApplication.start_at.is_not(None),
+            InsuranceApplication.start_at >= start_period,
+            InsuranceApplication.start_at < next_month,
+        ).all()
+        
+        # 회사별 정산 데이터 집계
+        settlements = {}
+        for app in applications:
+            try:
+                if app.created_by_member:
+                    company_name = app.created_by_member.company_name or ''
+                    representative = app.created_by_member.representative or ''
+                    business_number = app.created_by_member.business_number or ''
+                    
+                    company_key = (company_name, representative, business_number)
+                    if company_key not in settlements:
+                        settlements[company_key] = {
+                            'company_name': company_name,
+                            'representative': representative,
+                            'business_number': business_number,
+                            'count': 0,
+                            'amount': 0
+                        }
+                    settlements[company_key]['count'] += 1
+                    settlements[company_key]['amount'] += 9500  # 건수 × 9,500원
+            except Exception:
+                continue
+        
+        # 엑셀 데이터 생성
+        data = []
+        row_num = 1
+        total_count = 0
+        total_amount = 0
+        
+        for company_key in sorted(settlements.keys()):
+            settlement = settlements[company_key]
+            total_count += settlement['count']
+            total_amount += settlement['amount']
+            
+            data.append({
+                '순번': row_num,
+                '상사명': settlement['company_name'],
+                '대표자': settlement['representative'],
+                '사업자번호': settlement['business_number'],
+                '건수': settlement['count'],
+                '금액': settlement['amount'],
+                '비고': '',
+            })
+            row_num += 1
+        
+        # 합계 행 추가
+        if data:
+            data.append({
+                '순번': '',
+                '상사명': '합계',
+                '대표자': '',
+                '사업자번호': '',
+                '건수': total_count,
+                '금액': total_amount,
+                '비고': '',
+            })
+        
+        # DataFrame 생성 및 엑셀 파일 생성
+        df = pd.DataFrame(data)
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='정산내역')
+        buffer.seek(0)
+        
+        filename = f'{partner_group_name}_정산내역_{year}년{month}월_{datetime.now(KST).strftime("%Y%m%d_%H%M%S")}.xlsx'
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        
+    except Exception as e:
+        try:
+            import sys
+            import traceback
+            sys.stderr.write(f"Partner admin settlement export error: {e}\n")
+            sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+        except Exception:
+            pass
+        flash('엑셀 다운로드 중 오류가 발생했습니다.', 'danger')
+        return redirect(url_for('partner_admin_settlement'))
+
+
 @app.route('/admin')
 @login_required
 @admin_required
@@ -6309,6 +6450,107 @@ def admin_settlement():
                           settlements=settlements, 
                           total_count=total_count, 
                           total_amount=total_amount)
+
+
+@app.route('/admin/settlement/export')
+@login_required
+@admin_required
+def admin_settlement_export():
+    """정산 결과를 엑셀로 다운로드"""
+    ensure_initialized()
+    import pandas as pd
+    from io import BytesIO
+    
+    try:
+        year = int(request.args.get('year', datetime.now().year))
+        month = int(request.args.get('month', datetime.now().month))
+    except (ValueError, TypeError):
+        flash('올바른 년도와 월을 입력해주세요.', 'warning')
+        return redirect(url_for('admin_settlement'))
+    
+    # 월 유효성 검사
+    if month < 1 or month > 12:
+        flash('올바른 월을 입력해주세요. (1-12)', 'warning')
+        return redirect(url_for('admin_settlement'))
+    if year < 2000 or year > 2100:
+        flash('올바른 년도를 입력해주세요.', 'warning')
+        return redirect(url_for('admin_settlement'))
+    
+    if db is None:
+        flash('데이터베이스가 초기화되지 않았습니다.', 'danger')
+        return redirect(url_for('admin_settlement'))
+    
+    # 정산 데이터 계산 (admin_settlement와 동일한 로직)
+    start_period = datetime(year, month, 1, tzinfo=KST)
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1, tzinfo=KST)
+    else:
+        next_month = datetime(year, month + 1, 1, tzinfo=KST)
+    
+    rows = db.session.query(InsuranceApplication).filter(
+        InsuranceApplication.start_at.is_not(None),
+        InsuranceApplication.start_at >= start_period,
+        InsuranceApplication.start_at < next_month,
+    ).all()
+    
+    # 그룹핑: 상사별 건수/금액
+    by_company = {}
+    for r in rows:
+        company = r.created_by_member.company_name if r.created_by_member else '미상'
+        rep = r.created_by_member.representative if r.created_by_member else ''
+        biz = r.created_by_member.business_number if r.created_by_member else ''
+        key = (company, rep, biz)
+        by_company.setdefault(key, 0)
+        by_company[key] += 1
+    
+    # 엑셀 데이터 생성
+    data = []
+    row_num = 1
+    total_count = 0
+    total_amount = 0
+    
+    for (company, rep, biz), count in sorted(by_company.items()):
+        amount = count * 9500
+        total_count += count
+        total_amount += amount
+        
+        data.append({
+            '순번': row_num,
+            '상사명': company,
+            '대표자': rep,
+            '사업자번호': biz,
+            '건수': count,
+            '금액': amount,
+            '비고': '',
+        })
+        row_num += 1
+    
+    # 합계 행 추가
+    if data:
+        data.append({
+            '순번': '',
+            '상사명': '합계',
+            '대표자': '',
+            '사업자번호': '',
+            '건수': total_count,
+            '금액': total_amount,
+            '비고': '',
+        })
+    
+    # DataFrame 생성 및 엑셀 파일 생성
+    df = pd.DataFrame(data)
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='정산내역')
+    buffer.seek(0)
+    
+    filename = f'정산내역_{year}년{month}월_{datetime.now(KST).strftime("%Y%m%d_%H%M%S")}.xlsx'
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
 
 
 @app.route('/admin/invoice')

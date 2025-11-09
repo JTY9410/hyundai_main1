@@ -34,7 +34,7 @@
     <!-- Search and Actions -->
     <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl mb-6">
       <form method="get" class="space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
           <!-- 년도 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">년도</label>
@@ -63,6 +63,21 @@
                     class="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200">
               <i class="bi bi-calculator mr-2"></i>정산
             </button>
+          </div>
+          
+          <!-- 엑셀 다운로드 버튼 -->
+          <div class="flex items-end">
+            {% if settlements|length > 0 %}
+            <a href="{{ url_for('partner_admin_settlement_export', year=year, month=month) }}" 
+               class="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200">
+              <i class="bi bi-file-earmark-excel mr-2"></i>엑셀 다운로드
+            </a>
+            {% else %}
+            <button type="button" disabled
+                    class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-300 text-gray-500 font-medium rounded-lg cursor-not-allowed">
+              <i class="bi bi-file-earmark-excel mr-2"></i>엑셀 다운로드
+            </button>
+            {% endif %}
           </div>
           
           <!-- 일괄 저장 버튼 -->
