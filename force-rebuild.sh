@@ -33,7 +33,7 @@ docker compose up -d
 
 echo ""
 echo "✅ Force rebuild complete!"
-echo "📱 App available at: http://localhost:8901"
+echo "📱 App available at: http://localhost:8080"
 echo "🌍 Production: https://hyundai.wecarmobility.co.kr"
 echo ""
 

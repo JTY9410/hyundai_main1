@@ -114,6 +114,7 @@
           <thead class="bg-gray-50/80">
             <tr>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[50px]">순</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">대금정산방법</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">상사명</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">대표자</th>
               <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[80px]">건수</th>
@@ -127,6 +128,13 @@
             {% for settlement in settlements %}
             <tr class="hover:bg-blue-50/50 transition-colors duration-200">
               <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ loop.index }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                {% if settlement.settlement_method == '후불정산' %}
+                  <span class="px-2 py-1 text-xs font-semibold bg-purple-100 text-purple-800 rounded-full">후불정산</span>
+                {% else %}
+                  <span class="px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded-full">포인트</span>
+                {% endif %}
+              </td>
               <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{{ settlement.company_name }}</td>
               <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ settlement.representative }}</td>
               <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">{{ settlement.count }}건</td>
@@ -147,7 +155,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+              <td colspan="9" class="px-4 py-8 text-center text-gray-500">
                 <i class="bi bi-inbox text-4xl mb-2 block"></i>
                 정산 데이터가 없습니다.
               </td>
@@ -203,6 +211,7 @@ function showInvoiceModal(index) {
       <div>3. 사업자등록번호 : <span class="font-semibold">${settlement.business_number || '-'}</span></div>
       <div>4. 청구건수 : <span class="font-semibold">${settlement.count}</span></div>
       <div>5. 청구금액 : <span class="font-semibold">${settlement.amount.toLocaleString()}원</span></div>
+      <div>6. 대금정산방법 : <span class="font-semibold">${settlement.settlement_method || '-'}</span></div>
     </div>
     <div class="mt-8 text-lg text-gray-700 space-y-2">
       <div>입금계좌 : <span class="font-semibold">${partnerGroup.account_number || '-'}</span></div>

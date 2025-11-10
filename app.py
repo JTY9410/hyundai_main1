@@ -19,13 +19,15 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Index, CheckConstraint, event
+from sqlalchemy import Index, CheckConstraint, event, func
 from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError, OperationalError, IntegrityError
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from io import BytesIO
+from openpyxl import Workbook
+import uuid
 import functools
 # Defer pandas import to avoid heavy loading at module import time
 
@@ -498,7 +500,7 @@ _model_classes_defined = False
 
 def define_models():
     """Define SQLAlchemy models - called once when db is available"""
-    global PartnerGroup, Member, InsuranceApplication, _model_classes_defined
+    global PartnerGroup, Member, InsuranceApplication, DepositHistory, VirtualAccount, _model_classes_defined
     
     if _model_classes_defined or db is None:
         return
@@ -559,6 +561,8 @@ def define_models():
             approval_status = db.Column(db.String(32), default='신청')  # 신청, 승인
             role = db.Column(db.String(32), default='member')  # member, admin, partner_admin
             memo = db.Column(db.String(255))  # 비고
+            point_balance = db.Column(db.Integer, default=0)  # 잔류포인트
+            settlement_method = db.Column(db.String(16), default='포인트')  # 포인트, 후불정산
             created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST))
             
             __table_args__ = (
@@ -569,6 +573,7 @@ def define_models():
                 CheckConstraint("approval_status IN ('신청','승인')", name='ck_member_approval_status'),
                 CheckConstraint("role IN ('member','admin','partner_admin')", name='ck_member_role'),
                 CheckConstraint("member_type IN ('법인','개인')", name='ck_member_type'),
+                CheckConstraint("settlement_method IN ('포인트','후불정산')", name='ck_member_settlement_method'),
                 # 파트너그룹 내에서 username 유니크
                 db.UniqueConstraint('username', 'partner_group_id', name='uq_member_username_partner'),
             )
@@ -605,6 +610,7 @@ def define_models():
             insurance_policy_path = db.Column(db.String(512))  # 보험증권 파일 경로
             insurance_policy_url = db.Column(db.String(512))  # 보험증권 URL
             created_by_member_id = db.Column(db.Integer, db.ForeignKey('member.id'))
+            point_deducted = db.Column(db.Boolean, default=False)  # 포인트 차감 여부
 
             __table_args__ = (
                 Index('idx_ins_app_partner_group', 'partner_group_id'),
@@ -626,19 +632,88 @@ def define_models():
             def recompute_status(self) -> None:
                 now = datetime.now(KST)
                 approved_at_local = _ensure_aware(self.approved_at)
+                start_at_local = _ensure_aware(self.start_at)
                 end_at_local = _ensure_aware(self.end_at)
-                # After approval + 2 hours -> 가입
-                if self.status in ('신청', '조합승인'):
-                    if approved_at_local and now >= approved_at_local + timedelta(hours=2):
-                        self.status = '가입'
-                        if not self.start_at:
-                            # 가입일/종료일 설정: 가입희망일자 기준으로 세팅, 종료는 30일 후
-                            start_date = datetime.combine(self.desired_start_date, datetime.min.time(), tzinfo=KST)
-                            self.start_at = start_date
-                            self.end_at = start_date + timedelta(days=30)
-                # 종료일 경과 -> 종료
-                if end_at_local and now >= end_at_local:
-                    self.status = '종료'
+
+                # 승인 후 2시간 경과 시 가입시간 기록 (이전까지는 비워둠)
+                if approved_at_local and start_at_local is None:
+                    activation_time = approved_at_local + timedelta(hours=2)
+                    if now >= activation_time:
+                        self.start_at = activation_time
+                        start_at_local = activation_time
+                        self.end_at = activation_time + timedelta(days=30)
+                        end_at_local = _ensure_aware(self.end_at)
+
+                if start_at_local is not None:
+                    if end_at_local is None:
+                        self.end_at = start_at_local + timedelta(days=30)
+                        end_at_local = _ensure_aware(self.end_at)
+
+                    if end_at_local and now >= end_at_local:
+                        self.status = '종료'
+                    else:
+                        if self.status != '가입':
+                            self.status = '가입'
+                        if not self.point_deducted and self.created_by_member is not None:
+                            member = self.created_by_member
+                            if member:
+                                if getattr(member, 'settlement_method', '포인트') != '후불정산':
+                                    current_balance = member.point_balance or 0
+                                    if current_balance >= 9500:
+                                        member.point_balance = current_balance - 9500
+                                    else:
+                                        member.point_balance = 0
+                                    self.point_deducted = True
+                else:
+                    if end_at_local and now >= end_at_local:
+                        self.status = '종료'
+
+        class DepositHistory(ModelBase):
+            __tablename__ = 'deposit_history'
+
+            id = db.Column(db.Integer, primary_key=True)
+            member_id = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
+            partner_group_id = db.Column(db.Integer, db.ForeignKey('partner_group.id'), nullable=False)
+            bank_name = db.Column(db.String(128), nullable=False)
+            account_number = db.Column(db.String(128), nullable=False)
+            deposit_amount = db.Column(db.Integer, nullable=False)
+            deposit_date = db.Column(db.DateTime, default=lambda: datetime.now(KST))
+            created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST))
+
+            member = db.relationship('Member', backref='deposit_histories')
+            partner_group = db.relationship('PartnerGroup', backref='deposit_histories')
+
+        class PointAdjustment(ModelBase):
+            __tablename__ = 'point_adjustment'
+
+            id = db.Column(db.Integer, primary_key=True)
+            member_id = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
+            partner_group_id = db.Column(db.Integer, db.ForeignKey('partner_group.id'), nullable=False)
+            decrease_amount = db.Column(db.Integer, default=0)
+            increase_amount = db.Column(db.Integer, default=0)
+            change_amount = db.Column(db.Integer, default=0)
+            note = db.Column(db.String(255))
+            created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST))
+
+            member = db.relationship('Member', backref='point_adjustments')
+            partner_group = db.relationship('PartnerGroup', backref='point_adjustments')
+
+        class VirtualAccount(ModelBase):
+            __tablename__ = 'virtual_account'
+
+            id = db.Column(db.Integer, primary_key=True)
+            member_id = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
+            partner_group_id = db.Column(db.Integer, db.ForeignKey('partner_group.id'), nullable=False)
+            account_holder = db.Column(db.String(128), nullable=False)
+            bank_name = db.Column(db.String(128), nullable=False)
+            virtual_account_number = db.Column(db.String(128), nullable=False, unique=True)
+            deposit_amount = db.Column(db.Integer, nullable=False)
+            expiry_date = db.Column(db.Date, nullable=False)
+            status = db.Column(db.String(32), default='대기')
+            created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST))
+
+            member = db.relationship('Member', backref='virtual_accounts')
+            partner_group = db.relationship('PartnerGroup', backref='virtual_accounts')
         
         _model_classes_defined = True
         print("✓ Models defined successfully")
@@ -667,6 +742,7 @@ else:
         role = None
         business_number = None
         partner_group_id = None
+        settlement_method = '포인트'
         def set_password(self, password: str) -> None:
             pass
         def check_password(self, password: str) -> bool:
@@ -676,8 +752,21 @@ else:
         id = None
         status = None
         partner_group_id = None
+        point_deducted = None
         def recompute_status(self) -> None:
             pass
+
+    class DepositHistory:
+        id = None
+        pass
+
+    class VirtualAccount:
+        id = None
+        pass
+
+    class PointAdjustment:
+        id = None
+        pass
 
 
 # User loader - register conditionally
@@ -806,6 +895,26 @@ def init_db_and_assets():
                         print("Added memo column to member table")
                     except Exception as e:
                         print(f"Warning: Failed to add memo: {e}")
+
+            # Member 테이블: point_balance 컬럼 추가 (SQLite)
+            if 'point_balance' not in cols:
+                if not is_serverless:
+                    try:
+                        db.session.execute(text("ALTER TABLE member ADD COLUMN point_balance INTEGER DEFAULT 0"))
+                        safe_commit()
+                        print("Added point_balance column to member table")
+                    except Exception as e:
+                        print(f"Warning: Failed to add point_balance: {e}")
+
+            # Member 테이블: settlement_method 컬럼 추가 (SQLite)
+            if 'settlement_method' not in cols:
+                if not is_serverless:
+                    try:
+                        db.session.execute(text("ALTER TABLE member ADD COLUMN settlement_method VARCHAR(16) DEFAULT '포인트'"))
+                        safe_commit()
+                        print("Added settlement_method column to member table")
+                    except Exception as e:
+                        print(f"Warning: Failed to add settlement_method: {e}")
             
             # InsuranceApplication 테이블: 보험증권 필드 추가 (SQLite)
             res = db.session.execute(text("PRAGMA table_info(insurance_application)"))
@@ -828,6 +937,15 @@ def init_db_and_assets():
                         print("Added insurance_policy_url column to insurance_application table")
                     except Exception as e:
                         print(f"Warning: Failed to add insurance_policy_url: {e}")
+
+            if 'point_deducted' not in cols:
+                if not is_serverless:
+                    try:
+                        db.session.execute(text("ALTER TABLE insurance_application ADD COLUMN point_deducted BOOLEAN DEFAULT 0"))
+                        safe_commit()
+                        print("Added point_deducted column to insurance_application table")
+                    except Exception as e:
+                        print(f"Warning: Failed to add point_deducted: {e}")
         elif 'postgresql' in db_uri or 'postgres' in db_uri:
             # PostgreSQL: 컬럼 존재 여부 확인 후 추가
             inspector = inspect(db.engine)
@@ -872,6 +990,26 @@ def init_db_and_assets():
                         print("Added memo column to member table (PostgreSQL)")
                     except Exception as e:
                         print(f"Warning: Failed to add memo: {e}")
+
+            # Member 테이블: settlement_method 컬럼 추가 (PostgreSQL)
+            if 'settlement_method' not in member_cols:
+                if not is_serverless:
+                    try:
+                        db.session.execute(text("ALTER TABLE member ADD COLUMN settlement_method VARCHAR(16) DEFAULT '포인트'"))
+                        safe_commit()
+                        print("Added settlement_method column to member table (PostgreSQL)")
+                    except Exception as e:
+                        print(f"Warning: Failed to add settlement_method: {e}")
+
+            # Member 테이블: point_balance 컬럼 추가 (PostgreSQL)
+            if 'point_balance' not in member_cols:
+                if not is_serverless:
+                    try:
+                        db.session.execute(text("ALTER TABLE member ADD COLUMN point_balance INTEGER DEFAULT 0"))
+                        safe_commit()
+                        print("Added point_balance column to member table (PostgreSQL)")
+                    except Exception as e:
+                        print(f"Warning: Failed to add point_balance: {e}")
             
             # InsuranceApplication 테이블: 보험증권 필드 추가 (PostgreSQL)
             ins_app_cols = [col['name'] for col in inspector.get_columns('insurance_application')]
@@ -893,6 +1031,15 @@ def init_db_and_assets():
                         print("Added insurance_policy_url column to insurance_application table (PostgreSQL)")
                     except Exception as e:
                         print(f"Warning: Failed to add insurance_policy_url: {e}")
+
+            if 'point_deducted' not in ins_app_cols:
+                if not is_serverless:
+                    try:
+                        db.session.execute(text("ALTER TABLE insurance_application ADD COLUMN point_deducted BOOLEAN DEFAULT FALSE"))
+                        safe_commit()
+                        print("Added point_deducted column to insurance_application table (PostgreSQL)")
+                    except Exception as e:
+                        print(f"Warning: Failed to add point_deducted: {e}")
     except Exception as e:
         print(f"Warning: Schema migration failed: {e}")
         import traceback
@@ -4203,6 +4350,37 @@ def partner_insurance():
             flash('파트너그룹 정보를 찾을 수 없습니다.', 'danger')
             return redirect(url_for('login'))
         
+        member_for_points = None
+        available_points = 0
+        member_total_deposit = 0
+        member_recent_deposits = []
+        member_settlement_method = '포인트'
+        pending_virtual_account = None
+        point_requirement = 9500
+
+        if not is_partner_admin:
+            if hasattr(current_user, 'id'):
+                member_for_points = db.session.get(Member, current_user.id)
+                if member_for_points:
+                    available_points = member_for_points.point_balance or 0
+                    member_settlement_method = member_for_points.settlement_method or '포인트'
+                    member_total_deposit = db.session.query(
+                        func.coalesce(func.sum(DepositHistory.deposit_amount), 0)
+                    ).filter(
+                        DepositHistory.member_id == member_for_points.id
+                    ).scalar() or 0
+                    recent_deposit_rows = db.session.query(DepositHistory).filter(
+                        DepositHistory.member_id == member_for_points.id
+                    ).order_by(DepositHistory.deposit_date.desc()).limit(3).all()
+                    member_recent_deposits = [
+                        f"{row.bank_name}/{row.account_number}/{row.deposit_amount:,}원"
+                        for row in recent_deposit_rows
+                    ]
+                    pending_virtual_account = db.session.query(VirtualAccount).filter(
+                        VirtualAccount.member_id == member_for_points.id,
+                        VirtualAccount.status == '대기'
+                    ).order_by(VirtualAccount.created_at.desc()).first()
+
         if request.method == 'POST':
             action = request.form.get('action')
             
@@ -4222,82 +4400,92 @@ def partner_insurance():
                     flash('가입희망일자와 차량번호는 필수입니다.', 'warning')
                     return redirect(url_for('partner_insurance'))
                 
-                try:
-                    # 파트너그룹 정보 가져오기
-                    partner_group = db.session.query(PartnerGroup).filter_by(id=partner_group_id).first()
-                    partner_group_name = partner_group.name if partner_group else ''
-                    
-                    # 피보험자코드 설정
-                    if not is_partner_admin:
-                        # 회원사: 로그인한 사업자의 사업자번호
-                        if hasattr(current_user, 'business_number'):
-                            insured_code = current_user.business_number or ''
-                        else:
-                            insured_code = ''
-                    # 파트너그룹 관리자는 폼에서 입력받은 값 사용 (이미 위에서 가져옴)
-                    
-                    # 계약자코드: 파트너그룹 이름
-                    contractor_code = partner_group_name
-                    
-                    application = InsuranceApplication(
-                        partner_group_id=partner_group_id,
-                        desired_start_date=desired_start_date,
-                        insured_code=insured_code,  # 피보험자코드
-                        contractor_code=contractor_code,  # 계약자코드: 파트너그룹 이름
-                        car_plate=car_plate,
-                        vin=vin,
-                        car_name=car_name,
-                        car_registered_at=car_registered_at,
-                        premium=9500,  # 보험료 9500원 고정
-                        status='신청',
-                        memo=memo,
-                        created_by_member_id=current_user.id if not is_partner_admin and hasattr(current_user, 'id') else None,
-                    )
-                    db.session.add(application)
-                    
-                    # 커밋 전 디버깅
+                creation_allowed = True
+
+                if not is_partner_admin and member_for_points:
+                    current_balance = member_for_points.point_balance or 0
+                    if member_settlement_method != '후불정산' and current_balance < point_requirement:
+                        session['point_top_up_required'] = True
+                        flash('포인트 충전 후 사용해주세요.', 'warning')
+                        creation_allowed = False
+                
+                if creation_allowed:
                     try:
-                        import sys
-                        sys.stderr.write(f"Insurance application: Adding {car_plate} to session\n")
-                    except Exception:
-                        pass
-                    
-                    commit_success = safe_commit()
-                    
-                    if not commit_success:
+                        # 파트너그룹 정보 가져오기
+                        partner_group = db.session.query(PartnerGroup).filter_by(id=partner_group_id).first()
+                        partner_group_name = partner_group.name if partner_group else ''
+                        
+                        # 피보험자코드 설정
+                        if not is_partner_admin:
+                            # 회원사: 로그인한 사업자의 사업자번호
+                            if hasattr(current_user, 'business_number'):
+                                insured_code = current_user.business_number or ''
+                            else:
+                                insured_code = ''
+                        # 파트너그룹 관리자는 폼에서 입력받은 값 사용 (이미 위에서 가져옴)
+                        
+                        # 계약자코드: 파트너그룹 이름
+                        contractor_code = partner_group_name
+                        
+                        application = InsuranceApplication(
+                            partner_group_id=partner_group_id,
+                            desired_start_date=desired_start_date,
+                            insured_code=insured_code,  # 피보험자코드
+                            contractor_code=contractor_code,  # 계약자코드: 파트너그룹 이름
+                            car_plate=car_plate,
+                            vin=vin,
+                            car_name=car_name,
+                            car_registered_at=car_registered_at,
+                            premium=9500,  # 보험료 9500원 고정
+                            status='신청',
+                            memo=memo,
+                            created_by_member_id=current_user.id if not is_partner_admin and hasattr(current_user, 'id') else None,
+                        )
+                        db.session.add(application)
+                        
+                        # 커밋 전 디버깅
+                        try:
+                            import sys
+                            sys.stderr.write(f"Insurance application: Adding {car_plate} to session\n")
+                        except Exception:
+                            pass
+                        
+                        commit_success = safe_commit()
+                        
+                        if not commit_success:
+                            try:
+                                import sys
+                                import traceback
+                                sys.stderr.write(f"Insurance application: Commit failed for {car_plate}\n")
+                                sys.stderr.write(f"Insurance application traceback: {traceback.format_exc()}\n")
+                            except Exception:
+                                pass
+                            flash('신청 처리 중 오류가 발생했습니다.', 'danger')
+                        else:
+                            # 커밋 성공 후 검증
+                            try:
+                                import sys
+                                verify_app = db.session.get(InsuranceApplication, application.id)
+                                if verify_app:
+                                    sys.stderr.write(f"Insurance application: Verified {car_plate} (ID: {application.id}) exists\n")
+                                else:
+                                    sys.stderr.write(f"Insurance application: WARNING - {car_plate} not found after commit!\n")
+                            except Exception:
+                                pass
+                            flash('보험 신청이 등록되었습니다.', 'success')
+                    except Exception as e:
                         try:
                             import sys
                             import traceback
-                            sys.stderr.write(f"Insurance application: Commit failed for {car_plate}\n")
-                            sys.stderr.write(f"Insurance application traceback: {traceback.format_exc()}\n")
+                            sys.stderr.write(f"Insurance application error: {e}\n")
+                            sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
                         except Exception:
                             pass
-                        flash('신청 처리 중 오류가 발생했습니다.', 'danger')
-                    else:
-                        # 커밋 성공 후 검증
                         try:
-                            import sys
-                            verify_app = db.session.get(InsuranceApplication, application.id)
-                            if verify_app:
-                                sys.stderr.write(f"Insurance application: Verified {car_plate} (ID: {application.id}) exists\n")
-                            else:
-                                sys.stderr.write(f"Insurance application: WARNING - {car_plate} not found after commit!\n")
+                            db.session.rollback()
                         except Exception:
                             pass
-                        flash('보험 신청이 등록되었습니다.', 'success')
-                except Exception as e:
-                    try:
-                        import sys
-                        import traceback
-                        sys.stderr.write(f"Insurance application error: {e}\n")
-                        sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
-                    except Exception:
-                        pass
-                    try:
-                        db.session.rollback()
-                    except Exception:
-                        pass
-                    flash(f'신청 처리 중 오류가 발생했습니다: {str(e)}', 'danger')
+                        flash(f'신청 처리 중 오류가 발생했습니다: {str(e)}', 'danger')
             
             elif action == 'excel_upload':
                 # 엑셀 일괄 업로드
@@ -4552,6 +4740,8 @@ def partner_insurance():
             app.recompute_status()
         safe_commit()
         
+        show_point_modal = session.pop('point_top_up_required', False)
+
         return render_template('partner/insurance.html',
                              applications=applications,
                              is_partner_admin=is_partner_admin,
@@ -4560,7 +4750,14 @@ def partner_insurance():
                              start_date=start_date,
                              end_date=end_date,
                              edit_id=edit_id,
-                             current_user=current_user if not is_partner_admin else None)
+                            current_user=current_user if not is_partner_admin else None,
+                            member_point_balance=available_points,
+                            member_total_deposit=member_total_deposit,
+                            member_recent_deposits=member_recent_deposits,
+                            pending_virtual_account=pending_virtual_account,
+                             member_settlement_method=member_settlement_method,
+                             insufficient_points=show_point_modal,
+                            point_requirement=point_requirement)
         
     except Exception as e:
         try:
@@ -4814,6 +5011,419 @@ def partner_admin():
         flash('페이지 로드 중 오류가 발생했습니다.', 'danger')
         return redirect(url_for('partner_dashboard'))
 
+@app.route('/partner/admin/point-management', methods=['GET', 'POST'])
+def partner_admin_point_management():
+    try:
+        ensure_initialized()
+        
+        if 'user_type' not in session or session['user_type'] != 'partner_admin':
+            flash('파트너그룹 관리자만 접근 가능합니다.', 'warning')
+            return redirect(url_for('partner_dashboard'))
+        
+        partner_group_id = session.get('partner_group_id')
+        partner_group_name = session.get('partner_group_name')
+        
+        if not partner_group_id:
+            flash('파트너그룹 정보를 확인할 수 없습니다.', 'danger')
+            return redirect(url_for('partner_dashboard'))
+        
+        if request.method == 'POST':
+            action = request.form.get('action')
+            
+            if action == 'deposit':
+                try:
+                    member_identifier = request.form.get('member_id') or request.form.get('member_username')
+                    bank_name = request.form.get('bank_name', '').strip()
+                    account_number = request.form.get('account_number', '').strip()
+                    deposit_amount_raw = request.form.get('deposit_amount', '').replace(',', '').strip()
+                    
+                    if not member_identifier or not bank_name or not account_number or not deposit_amount_raw:
+                        flash('회원, 은행, 계좌번호, 입금액은 필수입니다.', 'warning')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    try:
+                        deposit_amount = int(deposit_amount_raw)
+                    except ValueError:
+                        deposit_amount = 0
+                    
+                    if deposit_amount <= 0:
+                        flash('입금액은 0보다 큰 숫자여야 합니다.', 'warning')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    member = None
+                    # member_id 우선 확인
+                    try:
+                        member_id = int(member_identifier)
+                        member = db.session.get(Member, member_id)
+                    except (TypeError, ValueError):
+                        member = None
+                    
+                    if member is None:
+                        member = db.session.query(Member).filter(
+                            Member.partner_group_id == partner_group_id,
+                            Member.username == member_identifier
+                        ).first()
+                    
+                    if member is None or member.partner_group_id != partner_group_id:
+                        flash('선택한 회원을 찾을 수 없습니다.', 'danger')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    deposit_date_str = request.form.get('deposit_date', '').strip()
+                    deposit_date = datetime.now(KST)
+                    if deposit_date_str:
+                        try:
+                            deposit_date = datetime.strptime(deposit_date_str, '%Y-%m-%dT%H:%M')
+                            if deposit_date.tzinfo is None:
+                                deposit_date = deposit_date.replace(tzinfo=KST)
+                        except ValueError:
+                            flash('입금일시는 YYYY-MM-DDTHH:MM 형식으로 입력해주세요.', 'warning')
+                            return redirect(url_for('partner_admin_point_management'))
+                    
+                    deposit = DepositHistory(
+                        member_id=member.id,
+                        partner_group_id=partner_group_id,
+                        bank_name=bank_name,
+                        account_number=account_number,
+                        deposit_amount=deposit_amount,
+                        deposit_date=deposit_date
+                    )
+                    db.session.add(deposit)
+                    
+                    member.point_balance = (member.point_balance or 0) + deposit_amount
+                    
+                    if not safe_commit():
+                        flash('입금현황 저장 중 오류가 발생했습니다.', 'danger')
+                    else:
+                        flash('입금현황이 저장되었습니다.', 'success')
+                    
+                except Exception as e:
+                    try:
+                        import sys
+                        import traceback
+                        sys.stderr.write(f"Point deposit error: {e}\n")
+                        sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+                    except Exception:
+                        pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                    flash('입금현황 저장 중 오류가 발생했습니다.', 'danger')
+                
+                return redirect(url_for('partner_admin_point_management'))
+            
+            elif action == 'adjust_points':
+                try:
+                    member_id_value = request.form.get('member_id')
+                    decrease_raw = (request.form.get('point_decrease') or '0').replace(',', '').strip()
+                    increase_raw = (request.form.get('point_increase') or '0').replace(',', '').strip()
+                    change_note = request.form.get('change_note', '').strip()
+                    
+                    if not member_id_value:
+                        flash('포인트를 수정할 회원을 선택해주세요.', 'warning')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    try:
+                        member_id_int = int(member_id_value)
+                    except (TypeError, ValueError):
+                        flash('잘못된 회원 정보입니다.', 'danger')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    member = db.session.get(Member, member_id_int)
+                    if member is None or member.partner_group_id != partner_group_id:
+                        flash('선택한 회원을 찾을 수 없습니다.', 'danger')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    try:
+                        decrease_amount = max(int(decrease_raw or 0), 0)
+                    except ValueError:
+                        decrease_amount = 0
+                    
+                    try:
+                        increase_amount = max(int(increase_raw or 0), 0)
+                    except ValueError:
+                        increase_amount = 0
+                    
+                    if decrease_amount == 0 and increase_amount == 0:
+                        flash('포인트 차감 또는 증가 금액을 입력해주세요.', 'warning')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    current_balance = member.point_balance or 0
+                    new_balance = current_balance - decrease_amount + increase_amount
+                    if new_balance < 0:
+                        new_balance = 0
+                    
+                    member.point_balance = new_balance
+                    
+                    note_parts = []
+                    if decrease_amount > 0:
+                        note_parts.append(f"포인트차감 {decrease_amount:,}원")
+                    if increase_amount > 0:
+                        note_parts.append(f"포인트증가 {increase_amount:,}원")
+                    if change_note:
+                        note_parts.append(change_note)
+                    note_text = ' / '.join(note_parts) if note_parts else '변경 없음'
+                    
+                    adjustment = PointAdjustment(
+                        member_id=member.id,
+                        partner_group_id=partner_group_id,
+                        decrease_amount=decrease_amount,
+                        increase_amount=increase_amount,
+                        change_amount=increase_amount - decrease_amount,
+                        note=note_text
+                    )
+                    db.session.add(adjustment)
+                    
+                    if not safe_commit():
+                        flash('포인트 수정 중 오류가 발생했습니다.', 'danger')
+                    else:
+                        flash('포인트가 수정되었습니다.', 'success')
+                except Exception as e:
+                    try:
+                        import sys
+                        import traceback
+                        sys.stderr.write(f"Point adjust error: {e}\n")
+                        sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+                    except Exception:
+                        pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                    flash('포인트 수정 중 오류가 발생했습니다.', 'danger')
+                
+                return redirect(url_for('partner_admin_point_management'))
+            
+            elif action == 'export_excel':
+                try:
+                    members = db.session.query(Member).filter(
+                        Member.partner_group_id == partner_group_id,
+                        Member.approval_status == '승인'
+                    ).order_by(Member.company_name.asc()).all()
+                    
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = "포인트현황"
+                    ws.append(['아이디', '상사명', '대표자', '사업자번호', '잔류포인트', '누적입금액', '포인트현황'])
+                    
+                    for member in members:
+                        total_deposit = db.session.query(
+                            func.coalesce(func.sum(DepositHistory.deposit_amount), 0)
+                        ).filter(
+                            DepositHistory.member_id == member.id
+                        ).scalar() or 0
+                        
+                        point_balance = member.point_balance or 0
+                        total_points = point_balance + total_deposit
+                        
+                        ws.append([
+                            member.username or '',
+                            member.company_name or '',
+                            member.representative or '',
+                            member.business_number or '',
+                            point_balance,
+                            total_deposit,
+                            total_points
+                        ])
+                    
+                    output = BytesIO()
+                    wb.save(output)
+                    output.seek(0)
+                    
+                    filename = f"point_management_{datetime.now(KST).strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    return send_file(
+                        output,
+                        as_attachment=True,
+                        download_name=filename,
+                        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    )
+                except Exception as e:
+                    try:
+                        import sys
+                        import traceback
+                        sys.stderr.write(f"Point export error: {e}\n")
+                        sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+                    except Exception:
+                        pass
+                    flash('엑셀 다운로드 중 오류가 발생했습니다.', 'danger')
+                    return redirect(url_for('partner_admin_point_management'))
+        
+        members = db.session.query(Member).filter(
+            Member.partner_group_id == partner_group_id,
+            Member.approval_status == '승인'
+        ).order_by(Member.company_name.asc()).all()
+        
+        member_rows = []
+        
+        for member in members:
+            recent_deposits = db.session.query(DepositHistory).filter(
+                DepositHistory.member_id == member.id
+            ).order_by(DepositHistory.deposit_date.desc()).limit(3).all()
+            
+            recent_display = [
+                f"{deposit.bank_name}/{deposit.account_number}/{deposit.deposit_amount:,}원"
+                for deposit in recent_deposits
+            ]
+            
+            total_deposit = db.session.query(
+                func.coalesce(func.sum(DepositHistory.deposit_amount), 0)
+            ).filter(
+                DepositHistory.member_id == member.id
+            ).scalar() or 0
+            
+            point_balance = member.point_balance or 0
+            last_adjustment = db.session.query(PointAdjustment).filter(
+                PointAdjustment.member_id == member.id
+            ).order_by(PointAdjustment.created_at.desc()).first()
+            last_adjustment_note = last_adjustment.note if last_adjustment else ''
+            
+            member_rows.append({
+                'member': member,
+                'point_balance': point_balance,
+                'total_deposit': total_deposit,
+                'recent_deposits': recent_display,
+                'last_adjustment_note': last_adjustment_note,
+                'last_adjustment_at': last_adjustment.created_at if last_adjustment else None
+            })
+        
+        return render_template(
+            'partner/admin_point_management.html',
+            partner_group_id=partner_group_id,
+            partner_group_name=partner_group_name,
+            members=members,
+            member_rows=member_rows
+        )
+    
+    except Exception as e:
+        try:
+            import sys
+            import traceback
+            sys.stderr.write(f"Partner point management error: {e}\n")
+            sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+        except Exception:
+            pass
+        flash('페이지 로드 중 오류가 발생했습니다.', 'danger')
+        return redirect(url_for('partner_dashboard'))
+
+@app.route('/partner/virtual-account', methods=['POST'])
+def partner_virtual_account():
+    try:
+        ensure_initialized()
+        
+        data = request.get_json(silent=True) or request.form
+        action_user_type = None
+        partner_group_id = None
+        target_member = None
+        
+        if 'user_type' in session and session['user_type'] == 'partner_admin':
+            action_user_type = 'partner_admin'
+            partner_group_id = session.get('partner_group_id')
+            
+            if not partner_group_id:
+                return jsonify({'success': False, 'message': '파트너그룹 정보를 확인할 수 없습니다.'}), 400
+            
+            member_identifier = data.get('member_id') or data.get('member_username')
+            if not member_identifier:
+                return jsonify({'success': False, 'message': '회원 정보를 입력해주세요.'}), 400
+            
+            try:
+                member_id = int(member_identifier)
+                target_member = db.session.get(Member, member_id)
+            except (TypeError, ValueError):
+                target_member = None
+            
+            if target_member is None:
+                target_member = db.session.query(Member).filter(
+                    Member.partner_group_id == partner_group_id,
+                    Member.username == member_identifier
+                ).first()
+            
+            if target_member is None or target_member.partner_group_id != partner_group_id:
+                return jsonify({'success': False, 'message': '선택한 회원을 찾을 수 없습니다.'}), 404
+        
+        else:
+            action_user_type = 'member'
+            if not current_user.is_authenticated:
+                return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
+            
+            partner_group_id = current_user.partner_group_id
+            if not partner_group_id:
+                return jsonify({'success': False, 'message': '파트너그룹 정보를 확인할 수 없습니다.'}), 400
+            
+            target_member = db.session.get(Member, current_user.id)
+            if target_member is None:
+                return jsonify({'success': False, 'message': '회원 정보를 확인할 수 없습니다.'}), 404
+        
+        account_holder = (data.get('account_holder') or '').strip()
+        bank_name = (data.get('bank_name') or '').strip()
+        deposit_amount_raw = (data.get('deposit_amount') or '').replace(',', '').strip()
+        
+        if not account_holder or not bank_name or not deposit_amount_raw:
+            return jsonify({'success': False, 'message': '입금주, 은행, 입금액은 필수입니다.'}), 400
+        
+        try:
+            deposit_amount = int(deposit_amount_raw)
+        except ValueError:
+            deposit_amount = 0
+        
+        if deposit_amount <= 0:
+            return jsonify({'success': False, 'message': '입금액은 0보다 큰 숫자여야 합니다.'}), 400
+        
+        def generate_account_number():
+            while True:
+                candidate = datetime.now(KST).strftime('%y%m%d') + str(uuid.uuid4().int)[-8:]
+                existing = db.session.query(VirtualAccount).filter(
+                    VirtualAccount.virtual_account_number == candidate
+                ).first()
+                if existing is None:
+                    return candidate
+        
+        # 기존 대기 중인 가상계좌 만료 처리
+        db.session.query(VirtualAccount).filter(
+            VirtualAccount.member_id == target_member.id,
+            VirtualAccount.status == '대기'
+        ).update({'status': '만료'}, synchronize_session=False)
+        
+        virtual_account_number = generate_account_number()
+        expiry_date = datetime.now(KST).date() + timedelta(days=3)
+        
+        virtual_account = VirtualAccount(
+            member_id=target_member.id,
+            partner_group_id=partner_group_id,
+            account_holder=account_holder,
+            bank_name=bank_name,
+            virtual_account_number=virtual_account_number,
+            deposit_amount=deposit_amount,
+            expiry_date=expiry_date,
+            status='대기'
+        )
+        db.session.add(virtual_account)
+        
+        if not safe_commit():
+            return jsonify({'success': False, 'message': '가상계좌 발급 중 오류가 발생했습니다.'}), 500
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'member_username': target_member.username,
+                'bank_name': bank_name,
+                'virtual_account_number': virtual_account_number,
+                'deposit_amount': deposit_amount,
+                'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+                'account_holder': account_holder
+            }
+        })
+    
+    except Exception as e:
+        try:
+            import sys
+            import traceback
+            sys.stderr.write(f"Virtual account issue error: {e}\n")
+            sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': '가상계좌 발급 중 오류가 발생했습니다.'}), 500
+
 # 파트너그룹 회원가입승인 페이지
 @app.route('/partner/admin/member-approval', methods=['GET', 'POST'])
 def partner_admin_member_approval():
@@ -4846,6 +5456,9 @@ def partner_admin_member_approval():
                 email = request.form.get('email', '').strip()
                 approval_status = request.form.get('approval_status', '신청').strip()
                 memo = request.form.get('memo', '').strip()
+                settlement_method = request.form.get('settlement_method', '포인트').strip() or '포인트'
+                if settlement_method != '후불정산':
+                    settlement_method = '포인트'
                 
                 if not company_name or not username or not password or not business_number:
                     flash('상사명, 아이디, 패스워드, 사업자번호는 필수입니다.', 'warning')
@@ -4875,7 +5488,8 @@ def partner_admin_member_approval():
                                 role='member',
                                 memo=memo,
                                 member_type='법인',  # 기본값: 법인
-                                privacy_agreement=False  # 기본값: False
+                                privacy_agreement=False,  # 기본값: False
+                                settlement_method=settlement_method
                             )
                             new_member.set_password(password)
                             db.session.add(new_member)
@@ -4948,6 +5562,9 @@ def partner_admin_member_approval():
                                     company_name = str(row.get('company_name', '')).strip()
                                     business_number = str(row.get('business_number', '')).strip()
                                     password = str(row.get('password', '')).strip()
+                                    settlement_method = str(row.get('settlement_method', '포인트')).strip() or '포인트'
+                                    if settlement_method not in ('포인트', '후불정산'):
+                                        settlement_method = '포인트'
                                     
                                     if not username or not company_name or not business_number or not password:
                                         skipped += 1
@@ -4978,7 +5595,8 @@ def partner_admin_member_approval():
                                         role='member',
                                         memo=str(row.get('memo', '') or '').strip(),
                                         member_type=str(row.get('member_type', '법인') or '법인').strip() or '법인',
-                                        privacy_agreement=bool(row.get('privacy_agreement', False)) if 'privacy_agreement' in row else False
+                                        privacy_agreement=bool(row.get('privacy_agreement', False)) if 'privacy_agreement' in row else False,
+                                        settlement_method=settlement_method
                                     )
                                     new_member.set_password(password)
                                     db.session.add(new_member)
@@ -5092,6 +5710,10 @@ def partner_admin_member_approval():
                             member.email = request.form.get('email', '').strip()
                             member.approval_status = request.form.get('approval_status', '신청')
                             member.memo = request.form.get('memo', '').strip()
+                            settlement_method = request.form.get('settlement_method', member.settlement_method or '포인트').strip()
+                            if settlement_method not in ('포인트', '후불정산'):
+                                settlement_method = '포인트'
+                            member.settlement_method = settlement_method
                             
                             # 사업자등록증 파일 업로드 처리
                             if 'registration_cert' in request.files:
@@ -5225,6 +5847,7 @@ def partner_admin_member_excel_template():
             'mobile': ['휴대폰'],
             'email': ['이메일'],
             'approval_status': ['승인'],
+            'settlement_method': ['포인트 또는 후불정산'],
             'memo': ['비고'],
         }
         
@@ -5285,12 +5908,6 @@ def partner_admin_insurance_approval():
                 for app in applications:
                     app.approved_at = now
                     app.status = '조합승인'
-                    # 가입일/종료일 설정: 가입희망일자 기준
-                    if app.desired_start_date and not app.start_at:
-                        app.start_at = datetime.combine(app.desired_start_date, datetime.min.time(), tzinfo=KST)
-                    if app.start_at and not app.end_at:
-                        from datetime import timedelta
-                        app.end_at = app.start_at + timedelta(days=30)
                 
                 try:
                     import sys
@@ -5328,11 +5945,6 @@ def partner_admin_insurance_approval():
                                 now = datetime.now(KST)
                                 application.approved_at = now
                                 application.status = '조합승인'
-                                if application.desired_start_date and not application.start_at:
-                                    application.start_at = datetime.combine(application.desired_start_date, datetime.min.time(), tzinfo=KST)
-                                if application.start_at and not application.end_at:
-                                    from datetime import timedelta
-                                    application.end_at = application.start_at + timedelta(days=30)
                                 
                                 try:
                                     import sys
@@ -5699,6 +6311,7 @@ def partner_admin_settlement():
                     company_name = app.created_by_member.company_name or ''
                     representative = app.created_by_member.representative or ''
                     business_number = app.created_by_member.business_number or ''
+                    settlement_method = app.created_by_member.settlement_method or '포인트'
                     
                     company_key = (company_name, representative, business_number)
                     if company_key not in settlements:
@@ -5706,9 +6319,13 @@ def partner_admin_settlement():
                             'company_name': company_name,
                             'representative': representative,
                             'business_number': business_number,
+                            'settlement_method': settlement_method,
                             'count': 0,
                             'amount': 0
                         }
+                    else:
+                        if not settlements[company_key].get('settlement_method'):
+                            settlements[company_key]['settlement_method'] = settlement_method
                     settlements[company_key]['count'] += 1
                     settlements[company_key]['amount'] += 9500  # 건수 × 9,500원
             except Exception as app_err:
@@ -5822,6 +6439,7 @@ def partner_admin_settlement_export():
                     company_name = app.created_by_member.company_name or ''
                     representative = app.created_by_member.representative or ''
                     business_number = app.created_by_member.business_number or ''
+                    settlement_method = app.created_by_member.settlement_method or '포인트'
                     
                     company_key = (company_name, representative, business_number)
                     if company_key not in settlements:
@@ -5829,9 +6447,13 @@ def partner_admin_settlement_export():
                             'company_name': company_name,
                             'representative': representative,
                             'business_number': business_number,
+                            'settlement_method': settlement_method,
                             'count': 0,
                             'amount': 0
                         }
+                    else:
+                        if not settlements[company_key].get('settlement_method'):
+                            settlements[company_key]['settlement_method'] = settlement_method
                     settlements[company_key]['count'] += 1
                     settlements[company_key]['amount'] += 9500  # 건수 × 9,500원
             except Exception:
@@ -5853,6 +6475,7 @@ def partner_admin_settlement_export():
                 '상사명': settlement['company_name'],
                 '대표자': settlement['representative'],
                 '사업자번호': settlement['business_number'],
+                '대금정산방법': settlement['settlement_method'],
                 '건수': settlement['count'],
                 '금액': settlement['amount'],
                 '비고': '',
@@ -5866,6 +6489,7 @@ def partner_admin_settlement_export():
                 '상사명': '합계',
                 '대표자': '',
                 '사업자번호': '',
+                '대금정산방법': '',
                 '건수': total_count,
                 '금액': total_amount,
                 '비고': '',
@@ -6182,11 +6806,6 @@ def admin_insurance():
             for r in rows:
                 r.approved_at = now
                 r.status = '조합승인'
-                # 가입일/종료일 설정: 가입희망일자 기준으로 세팅, 종료는 30일 후
-                if not r.start_at:
-                    start_date_aware = datetime.combine(r.desired_start_date, datetime.min.time(), tzinfo=KST)
-                    r.start_at = start_date_aware
-                    r.end_at = start_date_aware + timedelta(days=30)
             if not safe_commit():
                 flash('일괄 승인 처리 중 오류가 발생했습니다.', 'danger')
             else:
@@ -6210,13 +6829,9 @@ def admin_insurance():
             if row and action:
                 if action == 'approve':
                     print(f"DEBUG: Approving row {row.id}")  # 디버그 로그
-                    row.approved_at = datetime.now(KST)
+                    approval_time = datetime.now(KST)
+                    row.approved_at = approval_time
                     row.status = '조합승인'
-                    # 가입일/종료일 설정: 가입희망일자 기준으로 세팅, 종료는 30일 후
-                    if not row.start_at:
-                        start_date_aware = datetime.combine(row.desired_start_date, datetime.min.time(), tzinfo=KST)
-                        row.start_at = start_date_aware
-                        row.end_at = start_date_aware + timedelta(days=30)
                     if not safe_commit():
                         flash('승인 처리 중 오류가 발생했습니다.', 'danger')
                     else:
@@ -6421,14 +7036,24 @@ def admin_settlement():
         company = r.created_by_member.company_name if r.created_by_member else '미상'
         rep = r.created_by_member.representative if r.created_by_member else ''
         biz = r.created_by_member.business_number if r.created_by_member else ''
+        settlement_method = (r.created_by_member.settlement_method if r.created_by_member else '포인트') or '포인트'
         key = (company, rep, biz)
-        by_company.setdefault(key, 0)
-        by_company[key] += 1
+        if key not in by_company:
+            by_company[key] = {
+                'count': 0,
+                'amount': 0,
+                'settlement_method': settlement_method
+            }
+        else:
+            if not by_company[key].get('settlement_method'):
+                by_company[key]['settlement_method'] = settlement_method
+        by_company[key]['count'] += 1
 
     settlements = []
     total_count = 0
     total_amount = 0
-    for (company, rep, biz), count in by_company.items():
+    for (company, rep, biz), data in by_company.items():
+        count = data['count']
         amount = count * 9500
         total_count += count
         total_amount += amount
@@ -6438,6 +7063,7 @@ def admin_settlement():
             'business_number': biz,
             'count': count,
             'amount': amount,
+            'settlement_method': data.get('settlement_method', '포인트'),
         })
 
     # Ensure total_count and total_amount are always integers (not None)
@@ -6499,9 +7125,17 @@ def admin_settlement_export():
         company = r.created_by_member.company_name if r.created_by_member else '미상'
         rep = r.created_by_member.representative if r.created_by_member else ''
         biz = r.created_by_member.business_number if r.created_by_member else ''
+        settlement_method = (r.created_by_member.settlement_method if r.created_by_member else '포인트') or '포인트'
         key = (company, rep, biz)
-        by_company.setdefault(key, 0)
-        by_company[key] += 1
+        if key not in by_company:
+            by_company[key] = {
+                'count': 0,
+                'settlement_method': settlement_method
+            }
+        else:
+            if not by_company[key].get('settlement_method'):
+                by_company[key]['settlement_method'] = settlement_method
+        by_company[key]['count'] += 1
     
     # 엑셀 데이터 생성
     data = []
@@ -6509,7 +7143,8 @@ def admin_settlement_export():
     total_count = 0
     total_amount = 0
     
-    for (company, rep, biz), count in sorted(by_company.items()):
+    for (company, rep, biz), info in sorted(by_company.items()):
+        count = info['count']
         amount = count * 9500
         total_count += count
         total_amount += amount
@@ -6517,6 +7152,7 @@ def admin_settlement_export():
         data.append({
             '순번': row_num,
             '상사명': company,
+            '대금정산방법': info.get('settlement_method', '포인트'),
             '대표자': rep,
             '사업자번호': biz,
             '건수': count,
@@ -6530,6 +7166,7 @@ def admin_settlement_export():
         data.append({
             '순번': '',
             '상사명': '합계',
+            '대금정산방법': '',
             '대표자': '',
             '사업자번호': '',
             '건수': total_count,
@@ -6709,6 +7346,6 @@ def handle_unexpected_error(e):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8901)), debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)), debug=True)
 
 

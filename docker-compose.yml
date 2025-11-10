@@ -6,7 +6,7 @@ services:
     image: hyundai-insurance:local
     container_name: hyundai-insurance-app
     ports:
-      - "8901:8901"
+      - "8080:8080"
     volumes:
       - ./data:/app/data
       - ./static:/app/static
@@ -16,10 +16,10 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY:-hyundai-secret-key-change-in-production}
       - FLASK_ENV=production
-      - PORT=8901
+      - PORT=8080
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8901/healthz"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -37,6 +37,7 @@
       <thead class="bg-gray-50">
         <tr>
           <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50 z-10 min-w-[120px]">상사명</th>
+          <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50 z-10 min-w-[120px]">대금정산방법</th>
           <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50 z-10 min-w-[100px]">대표자</th>
           <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50 z-10 min-w-[80px]">건수</th>
           <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50 z-10 min-w-[120px]">금액</th>
@@ -49,6 +50,13 @@
         {% for s in settlements %}
           <tr>
             <td class="px-4 py-2 whitespace-nowrap">{{ s.company }}</td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              {% if s.settlement_method == '후불정산' %}
+                <span class="px-2 py-1 text-xs font-semibold bg-purple-100 text-purple-800 rounded-full">후불정산</span>
+              {% else %}
+                <span class="px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded-full">포인트</span>
+              {% endif %}
+            </td>
             <td class="px-4 py-2 whitespace-nowrap">{{ s.representative }}</td>
             <td class="px-4 py-2 whitespace-nowrap text-right">{{ s.count }}</td>
             <td class="px-4 py-2 whitespace-nowrap text-right">{{ '{:,}'.format(s.amount) }}</td>
@@ -63,14 +71,14 @@
         {% endfor %}
         {% if settlements|length > 0 %}
         <tr class="bg-gray-100 font-bold border-t-2 border-gray-300">
-          <td class="px-4 py-3 whitespace-nowrap" colspan="2"><strong>합계</strong></td>
+          <td class="px-4 py-3 whitespace-nowrap" colspan="3"><strong>합계</strong></td>
           <td class="px-4 py-3 whitespace-nowrap text-right"><strong>{{ total_count|default(0) }}</strong></td>
           <td class="px-4 py-3 whitespace-nowrap text-right"><strong>{{ '{:,}'.format(total_amount|default(0)) }}</strong></td>
           <td class="px-4 py-3 whitespace-nowrap" colspan="3"></td>
         </tr>
         {% elif settlements|length == 0 and year and month %}
         <tr class="bg-gray-50">
-          <td class="px-4 py-3 text-center text-gray-500" colspan="7">해당 기간의 데이터가 없습니다.</td>
+          <td class="px-4 py-3 text-center text-gray-500" colspan="8">해당 기간의 데이터가 없습니다.</td>
         </tr>
         {% endif %}
       </tbody>

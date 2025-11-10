@@ -32,7 +32,7 @@
     {% endwith %}
 
     <!-- Main Menu Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <!-- 회원가입승인 -->
       <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
         <div class="text-center">
@@ -73,6 +73,21 @@
           <p class="text-sm text-gray-600 mb-4">회원사별 정산 내역을 관리합니다</p>
           <a href="{{ url_for('partner_admin_settlement') }}" 
              class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white font-medium rounded-lg hover:from-purple-600 hover:to-violet-700 transition-all duration-200">
+            <i class="bi bi-arrow-right mr-2"></i>이동
+          </a>
+        </div>
+      </div>
+
+      <!-- 포인트관리 -->
+      <div class="glass rounded-2xl p-6 border border-white/50 backdrop-blur-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 animate-scale-in">
+        <div class="text-center">
+          <div class="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-xl mx-auto w-16 h-16 flex items-center justify-center mb-4">
+            <i class="bi bi-wallet2 text-white text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-800 mb-2">포인트관리</h3>
+          <p class="text-sm text-gray-600 mb-4">입금현황과 포인트를 관리합니다</p>
+          <a href="{{ url_for('partner_admin_point_management') }}" 
+             class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-orange-700 transition-all duration-200">
             <i class="bi bi-arrow-right mr-2"></i>이동
           </a>
         </div>

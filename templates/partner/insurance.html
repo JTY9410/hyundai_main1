@@ -36,7 +36,7 @@
     <!-- Search and Actions -->
     <div class="glass rounded-xl p-6 border border-white/50 backdrop-blur-xl mb-6">
       <form method="get" class="space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
           <!-- 시작일 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">시작일</label>
@@ -78,6 +78,15 @@
               <i class="bi bi-download mr-2"></i>업로드양식
             </a>
           </div>
+          
+          {% if not is_partner_admin %}
+          <div class="flex items-end">
+            <button type="button" onclick="openPointModal()" 
+                    class="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-orange-700 transition-all duration-200">
+              <i class="bi bi-credit-card-2-back mr-2"></i>입금신청
+            </button>
+          </div>
+          {% endif %}
         </div>
       </form>
       
@@ -180,25 +189,25 @@
     <div class="glass rounded-xl border border-white/50 backdrop-blur-xl overflow-hidden">
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 table-auto">
-          <thead class="bg-gray-50/80">
+          <thead class="bg-gradient-to-r from-slate-800 via-indigo-700 to-sky-600 text-white">
             <tr>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[50px]">순</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">신청시간</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">가입희망일자</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">가입시간</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">종료시간</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">조합승인시간</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">피보험자코드</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">계약자코드</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[110px]">한글차량번호</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[140px]">차대번호</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">차량명</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">차량등록일자</th>
-              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[90px]">보험료</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">현재상태</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[100px]">보험증권</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[150px]">비고</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">작업</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[50px]">순</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[140px]">신청시간</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[120px]">가입희망일자</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[140px]">가입시간</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[140px]">종료시간</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[140px]">조합승인시간</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[120px]">피보험자코드</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[120px]">계약자코드</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[110px]">한글차량번호</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[140px]">차대번호</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[120px]">차량명</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[120px]">차량등록일자</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[90px]">보험료</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[100px]">현재상태</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[100px]">보험증권</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[150px]">비고</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 bg-transparent z-10 min-w-[120px]">작업</th>
             </tr>
           </thead>
           <tbody class="bg-white/50 divide-y divide-gray-200">
@@ -383,6 +392,163 @@
   </div>
 </div>
 
+{% if not is_partner_admin %}
+<!-- 포인트 충전 모달 -->
+<div id="point-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closePointModal()"></div>
+  <div class="relative max-w-3xl mx-auto mt-16 bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-slate-50">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">포인트 충전이 필요합니다</h2>
+        <p class="text-sm text-gray-600 mt-1">보험 신청을 완료하려면 포인트를 충전해주세요.</p>
+      </div>
+      <button type="button" class="text-gray-400 hover:text-gray-600" onclick="closePointModal()">
+        <i class="bi bi-x-lg text-lg"></i>
+      </button>
+    </div>
+    <div class="px-6 py-5 space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="glass rounded-xl p-4 border border-emerald-100 bg-emerald-50/70">
+          <p class="text-sm text-emerald-600 mb-1">현재 포인트</p>
+          <p class="text-2xl font-semibold text-emerald-700" id="modal-current-point">
+            {{ "{:,.0f}".format(member_point_balance or 0) }}원
+          </p>
+        </div>
+        <div class="glass rounded-xl p-4 border border-yellow-100 bg-yellow-50/70">
+          <p class="text-sm text-yellow-700 mb-1">필요 포인트</p>
+          <p class="text-2xl font-semibold text-yellow-800" id="modal-required-point">
+            {{ "{:,.0f}".format(point_requirement or 0) }}원
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-gray-50 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+          <i class="bi bi-clock-history mr-2 text-gray-500"></i>최근 입금현황
+        </h3>
+        {% if member_recent_deposits %}
+          <ul class="space-y-1 text-sm text-gray-600" id="modal-recent-deposits">
+            {% for deposit in member_recent_deposits %}
+              <li class="flex items-center">
+                <i class="bi bi-chevron-right text-xs mr-2 text-gray-400"></i>{{ deposit }}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-sm text-gray-400" id="modal-recent-deposits">최근 입금 내역이 없습니다.</p>
+        {% endif %}
+      </div>
+
+      <form id="virtual-account-form" class="space-y-4" onsubmit="issueVirtualAccount(event)">
+        <input type="hidden" name="member_id" value="{{ current_user.id if current_user.is_authenticated else '' }}">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">아이디</label>
+            <input type="text" readonly
+                   value="{{ current_user.username if current_user.is_authenticated else '' }}"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">입금주</label>
+            <input type="text" name="account_holder" required
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                   placeholder="입금자명을 입력해주세요">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">은행</label>
+            <input type="text" name="bank_name" required
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                   placeholder="예: 국민은행">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">입금액</label>
+            <select name="deposit_amount" required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
+              <option value="">금액을 선택하세요</option>
+              <option value="100000">100,000원</option>
+              <option value="200000">200,000원</option>
+              <option value="300000">300,000원</option>
+              <option value="400000">400,000원</option>
+              <option value="500000">500,000원</option>
+              <option value="600000">600,000원</option>
+              <option value="700000">700,000원</option>
+              <option value="800000">800,000원</option>
+              <option value="900000">900,000원</option>
+              <option value="1000000">1,000,000원</option>
+              <option value="1100000">1,100,000원</option>
+              <option value="1200000">1,200,000원</option>
+              <option value="1300000">1,300,000원</option>
+              <option value="1400000">1,400,000원</option>
+              <option value="1500000">1,500,000원</option>
+              <option value="1600000">1,600,000원</option>
+              <option value="1700000">1,700,000원</option>
+              <option value="1800000">1,800,000원</option>
+              <option value="1900000">1,900,000원</option>
+              <option value="2000000">2,000,000원</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button type="submit"
+                    class="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-orange-700 transition-all duration-200">
+              <i class="bi bi-credit-card mr-2"></i>가상계좌발급
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <div id="virtual-account-result" class="border border-gray-200 rounded-xl p-4 bg-white {% if not pending_virtual_account %}hidden{% endif %}">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-700 flex items-center">
+            <i class="bi bi-safe2 mr-2 text-indigo-600"></i>발급된 가상계좌 정보
+          </h3>
+          <button type="button"
+                  class="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-blue-600 text-white text-xs font-medium rounded-lg hover:from-indigo-600 hover:to-blue-700 transition-all duration-200"
+                  onclick="copyVirtualAccountNumber()">
+            <i class="bi bi-clipboard mr-1"></i>계좌번호복사
+          </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
+          <div>아이디: <span id="virtual-account-member">{{ pending_virtual_account.member.username if pending_virtual_account else current_user.username }}</span></div>
+          <div>입금주: <span id="virtual-account-holder">{{ pending_virtual_account.account_holder if pending_virtual_account else '' }}</span></div>
+          <div>은행: <span id="virtual-account-bank">{{ pending_virtual_account.bank_name if pending_virtual_account else '' }}</span></div>
+          <div>입금금액: <span id="virtual-account-amount">
+            {% if pending_virtual_account %}
+              {{ "{:,.0f}".format(pending_virtual_account.deposit_amount) }}원
+            {% else %}
+              -
+            {% endif %}
+          </span></div>
+          <div class="md:col-span-2">가상계좌번호: <span id="virtual-account-number" class="font-semibold text-indigo-600">
+            {% if pending_virtual_account %}
+              {{ pending_virtual_account.virtual_account_number }}
+            {% else %}
+              -
+            {% endif %}
+          </span></div>
+          <div>종료일: <span id="virtual-account-expiry">
+            {% if pending_virtual_account %}
+              {{ pending_virtual_account.expiry_date.strftime('%Y-%m-%d') if pending_virtual_account.expiry_date else '-' }}
+            {% else %}
+              -
+            {% endif %}
+          </span></div>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <button type="button"
+                class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-medium rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200"
+                onclick="closePointModal()">
+          <i class="bi bi-x-lg mr-2"></i>입금신청 취소
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 // Toast 알림 함수
 function showToast(message, type = 'info') {
@@ -524,6 +690,105 @@ function hideNewForm() {
     form.style.display = 'none';
   }
 }
+
+{% if not is_partner_admin %}
+const pointModalEl = document.getElementById('point-modal');
+let latestVirtualAccountNumber = {{ '"' + pending_virtual_account.virtual_account_number + '"' if pending_virtual_account else 'null' }};
+
+function openPointModal() {
+  if (pointModalEl) {
+    pointModalEl.classList.remove('hidden');
+  }
+}
+
+function closePointModal() {
+  if (pointModalEl) {
+    pointModalEl.classList.add('hidden');
+  }
+}
+
+async function issueVirtualAccount(event) {
+  event.preventDefault();
+  const form = document.getElementById('virtual-account-form');
+  if (!form) return;
+
+  const payload = {
+    member_id: form.elements['member_id'] ? form.elements['member_id'].value : '',
+    account_holder: form.elements['account_holder'] ? form.elements['account_holder'].value.trim() : '',
+    bank_name: form.elements['bank_name'] ? form.elements['bank_name'].value.trim() : '',
+    deposit_amount: form.elements['deposit_amount'] ? form.elements['deposit_amount'].value.trim() : ''
+  };
+
+  if (!payload.account_holder || !payload.bank_name || !payload.deposit_amount) {
+    showToast('입금 정보를 모두 입력해주세요.', 'warning');
+    return;
+  }
+
+  try {
+    const response = await fetch('/partner/virtual-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.success) {
+      updateVirtualAccountResult(result.data);
+      showToast('가상계좌가 발급되었습니다.', 'success');
+    } else {
+      const message = result.message || '가상계좌 발급 중 오류가 발생했습니다.';
+      showToast(message, 'danger');
+    }
+  } catch (error) {
+    console.error('Virtual account error:', error);
+    showToast('가상계좌 발급 중 오류가 발생했습니다.', 'danger');
+  }
+}
+
+function updateVirtualAccountResult(data) {
+  latestVirtualAccountNumber = data.virtual_account_number || null;
+  const resultBox = document.getElementById('virtual-account-result');
+  if (!resultBox) return;
+
+  resultBox.classList.remove('hidden');
+
+  const mapping = {
+    'virtual-account-member': data.member_username || '',
+    'virtual-account-holder': data.account_holder || '',
+    'virtual-account-bank': data.bank_name || '',
+    'virtual-account-number': data.virtual_account_number || '',
+    'virtual-account-amount': data.deposit_amount ? `${Number(data.deposit_amount).toLocaleString()}원` : '-',
+    'virtual-account-expiry': data.expiry_date || '-'
+  };
+
+  Object.entries(mapping).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = value;
+    }
+  });
+}
+
+function copyVirtualAccountNumber() {
+  if (!latestVirtualAccountNumber) {
+    showToast('복사할 가상계좌 번호가 없습니다.', 'warning');
+    return;
+  }
+  navigator.clipboard.writeText(latestVirtualAccountNumber).then(() => {
+    showToast('가상계좌번호가 복사되었습니다.', 'success');
+  }).catch(() => {
+    showToast('계좌번호 복사 중 오류가 발생했습니다.', 'danger');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const shouldOpenModal = {{ 'true' if insufficient_points else 'false' }};
+  if (shouldOpenModal) {
+    openPointModal();
+  }
+});
+{% endif %}
 </script>
 
 <style>

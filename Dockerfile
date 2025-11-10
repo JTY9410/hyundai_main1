@@ -29,10 +29,10 @@ RUN mkdir -p /app/static /app/uploads /app/templates
 VOLUME ["/app/data"]
 
 # 포트 노출
-EXPOSE 8901
+EXPOSE 8080
 
 # 포트 환경변수 설정
-ENV PORT=8901
+ENV PORT=8080
 
 # 애플리케이션 실행
 CMD ["python", "app.py"]

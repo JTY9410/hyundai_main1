@@ -77,6 +77,16 @@ def migrate_database():
         if 'privacy_agreement' not in existing_columns:
             cursor.execute("ALTER TABLE member ADD COLUMN privacy_agreement BOOLEAN DEFAULT 0")
             print("  ✅ privacy_agreement 컬럼 추가됨")
+
+        # settlement_method 컬럼 추가
+        if 'settlement_method' not in existing_columns:
+            cursor.execute("ALTER TABLE member ADD COLUMN settlement_method VARCHAR(16) DEFAULT '포인트'")
+            print("  ✅ settlement_method 컬럼 추가됨")
+        
+        # point_balance 컬럼 추가
+        if 'point_balance' not in existing_columns:
+            cursor.execute("ALTER TABLE member ADD COLUMN point_balance INTEGER DEFAULT 0")
+            print("  ✅ point_balance 컬럼 추가됨")
         
         # 3. InsuranceApplication 테이블에 새 컬럼 추가
         print("📄 InsuranceApplication 테이블 업데이트 중...")
@@ -99,7 +109,64 @@ def migrate_database():
             cursor.execute("ALTER TABLE insurance_application ADD COLUMN insurance_policy_url VARCHAR(512)")
             print("  ✅ insurance_policy_url 컬럼 추가됨")
         
-        # 4. 기존 관리자 계정 업데이트
+        if 'point_deducted' not in existing_columns:
+            cursor.execute("ALTER TABLE insurance_application ADD COLUMN point_deducted BOOLEAN DEFAULT 0")
+            print("  ✅ point_deducted 컬럼 추가됨")
+
+        # 4. 포인트 관리 관련 테이블 생성
+        print("💳 포인트 관리 테이블 생성 중...")
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deposit_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER NOT NULL,
+                partner_group_id INTEGER NOT NULL,
+                bank_name VARCHAR(128) NOT NULL,
+                account_number VARCHAR(128) NOT NULL,
+                deposit_amount INTEGER NOT NULL,
+                deposit_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (member_id) REFERENCES member(id),
+                FOREIGN KEY (partner_group_id) REFERENCES partner_group(id)
+            )
+        """)
+        print("  ✅ deposit_history 테이블 확인/생성 완료")
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS virtual_account (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER NOT NULL,
+                partner_group_id INTEGER NOT NULL,
+                account_holder VARCHAR(128) NOT NULL,
+                bank_name VARCHAR(128) NOT NULL,
+                virtual_account_number VARCHAR(128) NOT NULL UNIQUE,
+                deposit_amount INTEGER NOT NULL,
+                expiry_date DATE NOT NULL,
+                status VARCHAR(32) DEFAULT '대기',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (member_id) REFERENCES member(id),
+                FOREIGN KEY (partner_group_id) REFERENCES partner_group(id)
+            )
+        """)
+        print("  ✅ virtual_account 테이블 확인/생성 완료")
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS point_adjustment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER NOT NULL,
+                partner_group_id INTEGER NOT NULL,
+                decrease_amount INTEGER DEFAULT 0,
+                increase_amount INTEGER DEFAULT 0,
+                change_amount INTEGER DEFAULT 0,
+                note VARCHAR(255),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (member_id) REFERENCES member(id),
+                FOREIGN KEY (partner_group_id) REFERENCES partner_group(id)
+            )
+        """)
+        print("  ✅ point_adjustment 테이블 확인/생성 완료")
+        
+        # 5. 기존 관리자 계정 업데이트
         print("🔐 기존 관리자 계정 업데이트 중...")
         
         # 기존 admin 계정을 hyundai로 변경하고 role 설정
@@ -124,7 +191,7 @@ def migrate_database():
         
         print("  ✅ 관리자 계정 업데이트 완료 (ID: hyundai, PW: #admin1004)")
         
-        # 5. 기존 회원들에게 기본 파트너그룹 생성 및 할당
+        # 6. 기존 회원들에게 기본 파트너그룹 생성 및 할당
         print("🏢 기본 파트너그룹 생성 중...")
         
         # 기본 파트너그룹 생성
