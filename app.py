@@ -660,10 +660,30 @@ def define_models():
                             if member:
                                 if getattr(member, 'settlement_method', '포인트') != '후불정산':
                                     current_balance = member.point_balance or 0
-                                    if current_balance >= 9500:
-                                        member.point_balance = current_balance - 9500
-                                    else:
-                                        member.point_balance = 0
+                                    deducted_amount = min(current_balance, 9500)
+                                    
+                                    if deducted_amount > 0:
+                                        member.point_balance = current_balance - deducted_amount
+                                        
+                                        # 포인트 차감 내역을 PointAdjustment 테이블에 기록
+                                        try:
+                                            adjustment = PointAdjustment(
+                                                member_id=member.id,
+                                                partner_group_id=member.partner_group_id or self.partner_group_id,
+                                                decrease_amount=deducted_amount,
+                                                increase_amount=0,
+                                                change_amount=-deducted_amount,
+                                                note=f'보험신청 포인트 차감 (차량번호: {self.car_plate})'
+                                            )
+                                            db.session.add(adjustment)
+                                        except Exception as e:
+                                            # 로깅만 하고 계속 진행
+                                            try:
+                                                import sys
+                                                sys.stderr.write(f"Point adjustment logging failed: {e}\n")
+                                            except Exception:
+                                                pass
+                                    
                                     self.point_deducted = True
                 else:
                     if end_at_local and now >= end_at_local:
@@ -5313,6 +5333,119 @@ def partner_admin_point_management():
             pass
         flash('페이지 로드 중 오류가 발생했습니다.', 'danger')
         return redirect(url_for('partner_dashboard'))
+
+@app.route('/partner/admin/point-history/<int:member_id>')
+def partner_admin_point_history(member_id):
+    """회원의 포인트 입출금 세부내역 조회"""
+    try:
+        ensure_initialized()
+        
+        # 파트너 관리자 권한 확인
+        if 'user_type' not in session or session['user_type'] != 'partner_admin':
+            flash('접근 권한이 없습니다.', 'danger')
+            return redirect(url_for('login'))
+        
+        partner_group_id = session.get('partner_group_id')
+        if not partner_group_id:
+            flash('파트너그룹 정보를 확인할 수 없습니다.', 'danger')
+            return redirect(url_for('partner_dashboard'))
+        
+        # 회원 정보 조회
+        member = db.session.query(Member).filter_by(
+            id=member_id, 
+            partner_group_id=partner_group_id
+        ).first()
+        
+        if not member:
+            flash('회원 정보를 찾을 수 없습니다.', 'danger')
+            return redirect(url_for('partner_admin_point_management'))
+        
+        # 파트너그룹 정보 조회
+        partner_group = db.session.get(PartnerGroup, partner_group_id)
+        partner_group_name = partner_group.name if partner_group else '파트너그룹'
+        
+        # 입금 내역 조회 (최신순)
+        deposit_history = db.session.query(DepositHistory).filter_by(
+            member_id=member_id
+        ).order_by(DepositHistory.deposit_date.desc()).all()
+        
+        # 포인트 조정 내역 조회 (최신순)
+        point_adjustments = db.session.query(PointAdjustment).filter_by(
+            member_id=member_id
+        ).order_by(PointAdjustment.created_at.desc()).all()
+        
+        # 통합 내역 생성 (시간순 정렬)
+        transactions = []
+        
+        # 입금 내역 추가
+        for deposit in deposit_history:
+            transactions.append({
+                'type': 'deposit',
+                'date': deposit.deposit_date,
+                'amount': deposit.deposit_amount,
+                'description': f'{deposit.bank_name} {deposit.account_number}',
+                'note': f'입금 {deposit.deposit_amount:,}원',
+                'balance_change': f'+{deposit.deposit_amount:,}원'
+            })
+        
+        # 포인트 조정 내역 추가
+        for adjustment in point_adjustments:
+            if adjustment.decrease_amount > 0:
+                transactions.append({
+                    'type': 'point_decrease',
+                    'date': adjustment.created_at,
+                    'amount': -adjustment.decrease_amount,
+                    'description': '포인트 차감',
+                    'note': adjustment.note or '포인트 차감',
+                    'balance_change': f'-{adjustment.decrease_amount:,}원'
+                })
+            
+            if adjustment.increase_amount > 0:
+                transactions.append({
+                    'type': 'point_increase',
+                    'date': adjustment.created_at,
+                    'amount': adjustment.increase_amount,
+                    'description': '포인트 증가',
+                    'note': adjustment.note or '포인트 증가',
+                    'balance_change': f'+{adjustment.increase_amount:,}원'
+                })
+        
+        # 날짜순 정렬 (최신순)
+        transactions.sort(key=lambda x: x['date'], reverse=True)
+        
+        # 현재 포인트 잔액
+        current_balance = member.point_balance or 0
+        
+        # 총 입금액
+        total_deposits = sum(d.deposit_amount for d in deposit_history)
+        
+        # 총 포인트 차감액
+        total_decreases = sum(a.decrease_amount for a in point_adjustments)
+        
+        # 총 포인트 증가액
+        total_increases = sum(a.increase_amount for a in point_adjustments)
+        
+        return render_template(
+            'partner/admin_point_history.html',
+            member=member,
+            partner_group_name=partner_group_name,
+            transactions=transactions,
+            current_balance=current_balance,
+            total_deposits=total_deposits,
+            total_decreases=total_decreases,
+            total_increases=total_increases
+        )
+    
+    except Exception as e:
+        try:
+            import sys
+            import traceback
+            sys.stderr.write(f"Point history error: {e}\n")
+            sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+        except Exception:
+            pass
+        flash('포인트 내역 조회 중 오류가 발생했습니다.', 'danger')
+        return redirect(url_for('partner_admin_point_management'))
 
 @app.route('/partner/virtual-account', methods=['POST'])
 def partner_virtual_account():

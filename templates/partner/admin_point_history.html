@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+
+{% block title %}포인트 입출금세부내역 - {{ member.username }} ({{ member.company_name }}){% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-3xl font-bold gradient-text">포인트 입출금세부내역</h1>
+        <p class="text-gray-600 mt-2">
+          <span class="font-semibold">{{ member.username }}</span> ({{ member.company_name or '회사명 없음' }})의 포인트 거래내역
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="window.close()" 
+                class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-medium rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200">
+          <i class="bi bi-x-lg mr-2"></i>창 닫기
+        </button>
+        <button onclick="window.print()" 
+                class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200">
+          <i class="bi bi-printer mr-2"></i>인쇄
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <!-- 현재 포인트 잔액 -->
+      <div class="glass rounded-2xl border border-white/50 backdrop-blur-xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">현재 포인트 잔액</p>
+            <p class="text-2xl font-bold text-blue-600">{{ "{:,.0f}".format(current_balance) }}원</p>
+          </div>
+          <div class="p-3 bg-blue-100 rounded-full">
+            <i class="bi bi-wallet2 text-xl text-blue-600"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- 총 입금액 -->
+      <div class="glass rounded-2xl border border-white/50 backdrop-blur-xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">총 입금액</p>
+            <p class="text-2xl font-bold text-emerald-600">{{ "{:,.0f}".format(total_deposits) }}원</p>
+          </div>
+          <div class="p-3 bg-emerald-100 rounded-full">
+            <i class="bi bi-arrow-down-circle text-xl text-emerald-600"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- 총 포인트 차감액 -->
+      <div class="glass rounded-2xl border border-white/50 backdrop-blur-xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">총 포인트 차감액</p>
+            <p class="text-2xl font-bold text-red-600">{{ "{:,.0f}".format(total_decreases) }}원</p>
+          </div>
+          <div class="p-3 bg-red-100 rounded-full">
+            <i class="bi bi-arrow-up-circle text-xl text-red-600"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- 총 포인트 증가액 -->
+      <div class="glass rounded-2xl border border-white/50 backdrop-blur-xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">총 포인트 증가액</p>
+            <p class="text-2xl font-bold text-purple-600">{{ "{:,.0f}".format(total_increases) }}원</p>
+          </div>
+          <div class="p-3 bg-purple-100 rounded-full">
+            <i class="bi bi-plus-circle text-xl text-purple-600"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transaction History Table -->
+    <div class="glass rounded-2xl border border-white/50 backdrop-blur-xl overflow-hidden">
+      <div class="px-6 py-4 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500">
+        <h3 class="text-lg font-semibold text-white">거래내역 (최신순)</h3>
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">일시</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">거래유형</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상세내용</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">금액변동</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for transaction in transactions %}
+              <tr class="hover:bg-gray-50 transition-colors duration-200">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {{ transaction.date.strftime('%Y-%m-%d %H:%M:%S') if transaction.date else '-' }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {% if transaction.type == 'deposit' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                      <i class="bi bi-arrow-down-circle mr-1"></i>입금
+                    </span>
+                  {% elif transaction.type == 'point_decrease' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      <i class="bi bi-arrow-up-circle mr-1"></i>포인트차감
+                    </span>
+                  {% elif transaction.type == 'point_increase' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      <i class="bi bi-plus-circle mr-1"></i>포인트증가
+                    </span>
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-900">
+                  {{ transaction.description }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  {% if transaction.type == 'deposit' or transaction.type == 'point_increase' %}
+                    <span class="text-emerald-600">{{ transaction.balance_change }}</span>
+                  {% else %}
+                    <span class="text-red-600">{{ transaction.balance_change }}</span>
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-500">
+                  {{ transaction.note }}
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                  <i class="bi bi-inbox text-4xl mb-2 block"></i>
+                  거래내역이 없습니다.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Member Info -->
+    <div class="mt-8 glass rounded-2xl border border-white/50 backdrop-blur-xl p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">회원 정보</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div>
+          <p class="text-sm font-medium text-gray-600">아이디</p>
+          <p class="text-sm text-gray-900">{{ member.username }}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">상사명</p>
+          <p class="text-sm text-gray-900">{{ member.company_name or '-' }}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">대표자</p>
+          <p class="text-sm text-gray-900">{{ member.representative or '-' }}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">사업자번호</p>
+          <p class="text-sm text-gray-900">{{ member.business_number or '-' }}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">연락처</p>
+          <p class="text-sm text-gray-900">{{ member.phone or '-' }}</p>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">정산방식</p>
+          <p class="text-sm text-gray-900">{{ member.settlement_method or '포인트' }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    background: white !important;
+  }
+  
+  .glass {
+    background: white !important;
+    border: 1px solid #e5e7eb !important;
+  }
+  
+  .gradient-text {
+    background: none !important;
+    color: #1f2937 !important;
+  }
+}
+</style>
+
+<script>
+// 인쇄 시 스타일 조정
+window.addEventListener('beforeprint', function() {
+  document.body.classList.add('printing');
+});
+
+window.addEventListener('afterprint', function() {
+  document.body.classList.remove('printing');
+});
+</script>
+{% endblock %}

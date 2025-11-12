@@ -207,6 +207,11 @@
                             onclick="openPointAdjustModal(this)">
                       <i class="bi bi-sliders mr-1"></i>포인트수정
                     </button>
+                    <button type="button"
+                            class="inline-flex items-center px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-medium rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all duration-200"
+                            onclick="viewPointHistory('{{ row.member.id }}', '{{ row.member.username }}', '{{ row.member.company_name or '' }}')">
+                      <i class="bi bi-list-ul mr-1"></i>포인트 입출금세부내역
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -381,6 +386,13 @@ function updatePointAdjustmentResult() {
   if (resultDisplay) {
     resultDisplay.value = new Intl.NumberFormat('ko-KR').format(newBalance) + '원';
   }
+}
+
+// 포인트 입출금 세부내역 보기
+function viewPointHistory(memberId, username, companyName) {
+  // 새 창에서 포인트 내역 페이지 열기
+  const url = `/partner/admin/point-history/${memberId}`;
+  window.open(url, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
 }
 </script>
 {% endblock %}
