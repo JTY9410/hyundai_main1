@@ -2711,6 +2711,32 @@ def partner_dashboard():
                 except Exception:
                     pass
         
+        # partner_admin 역할인 경우 추가 검증
+        if user_role == 'partner_admin' and hasattr(current_user, 'id'):
+            try:
+                # DB에서 실제 역할과 승인 상태 확인
+                member = db.session.get(Member, current_user.id)
+                if not member or member.role != 'partner_admin' or member.approval_status != '승인':
+                    flash('관리자 권한이 없거나 승인되지 않은 계정입니다.', 'danger')
+                    return redirect(url_for('login'))
+                
+                # 파트너그룹 정보 업데이트
+                if member.partner_group_id:
+                    session['user_type'] = 'partner_admin'
+                    session['partner_group_id'] = member.partner_group_id
+                    session['user_role'] = 'partner_admin'
+                    
+                    # 파트너그룹 이름 조회
+                    partner_group = db.session.get(PartnerGroup, member.partner_group_id)
+                    if partner_group:
+                        session['partner_group_name'] = partner_group.name
+            except Exception as e:
+                try:
+                    import sys
+                    sys.stderr.write(f"Partner admin verification error: {e}\n")
+                except Exception:
+                    pass
+        
         # 전체관리자가 파트너그룹을 선택한 경우
         if user_role == 'admin' and 'admin_selected_partner_group_id' in session:
             partner_group_id = session.get('admin_selected_partner_group_id')
@@ -6015,6 +6041,7 @@ def partner_admin_member_approval():
                             member.mobile = request.form.get('mobile', '').strip()
                             member.email = request.form.get('email', '').strip()
                             member.approval_status = request.form.get('approval_status', '신청')
+                            member.role = request.form.get('role', 'member')
                             member.memo = request.form.get('memo', '').strip()
                             settlement_method = request.form.get('settlement_method', member.settlement_method or '포인트').strip()
                             if settlement_method not in ('포인트', '후불정산'):

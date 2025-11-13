@@ -170,6 +170,7 @@
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[110px]">휴대폰</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[180px]">이메일</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[90px]">승인</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[90px]">권한</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[130px]">대금정산방법</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[120px]">사업자등록증</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50/80 z-10 min-w-[150px]">비고</th>
@@ -234,6 +235,13 @@
                   </select>
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap">
+                  <select name="role"
+                          class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="member" {% if member.role == 'member' %}selected{% endif %}>회원</option>
+                    <option value="partner_admin" {% if member.role == 'partner_admin' %}selected{% endif %}>관리자</option>
+                  </select>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
                   <select name="settlement_method"
                           class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                     <option value="포인트" {% if member.settlement_method != '후불정산' %}selected{% endif %}>포인트</option>
@@ -293,6 +301,13 @@
                   <span class="px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">승인</span>
                 {% else %}
                   <span class="px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">신청</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                {% if member.role == 'partner_admin' %}
+                  <span class="px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">관리자</span>
+                {% else %}
+                  <span class="px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-800 rounded-full">회원</span>
                 {% endif %}
               </td>
               <td class="px-4 py-3 whitespace-nowrap text-sm">

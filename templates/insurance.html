@@ -482,7 +482,11 @@ async function issueVirtualAccount(event) {
   try {
     const response = await fetch('/virtual-account', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'same-origin',
       body: JSON.stringify(payload)
     });
 
