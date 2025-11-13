@@ -3255,7 +3255,46 @@ def insurance():
             'approved_at_str': fmt_display_safe(r.approved_at),
         })
 
-    return render_template('insurance.html', rows=rows, items=items, edit_id=edit_id)
+    # 포인트 관련 정보 추가
+    member_point_balance = 0
+    member_total_deposit = 0
+    member_recent_deposits = []
+    member_settlement_method = '포인트'
+    pending_virtual_account = None
+    point_requirement = 9500
+    
+    if hasattr(current_user, 'id'):
+        member = db.session.get(Member, current_user.id)
+        if member:
+            member_point_balance = member.point_balance or 0
+            member_settlement_method = member.settlement_method or '포인트'
+            member_total_deposit = db.session.query(
+                func.coalesce(func.sum(DepositHistory.deposit_amount), 0)
+            ).filter(
+                DepositHistory.member_id == member.id
+            ).scalar() or 0
+            recent_deposit_rows = db.session.query(DepositHistory).filter(
+                DepositHistory.member_id == member.id
+            ).order_by(DepositHistory.deposit_date.desc()).limit(3).all()
+            member_recent_deposits = [
+                f"{row.bank_name}/{row.account_number}/{row.deposit_amount:,}원"
+                for row in recent_deposit_rows
+            ]
+            pending_virtual_account = db.session.query(VirtualAccount).filter(
+                VirtualAccount.member_id == member.id,
+                VirtualAccount.status == '대기'
+            ).order_by(VirtualAccount.created_at.desc()).first()
+    
+    return render_template('insurance.html', 
+                         rows=rows, 
+                         items=items, 
+                         edit_id=edit_id,
+                         member_point_balance=member_point_balance,
+                         member_total_deposit=member_total_deposit,
+                         member_recent_deposits=member_recent_deposits,
+                         member_settlement_method=member_settlement_method,
+                         pending_virtual_account=pending_virtual_account,
+                         point_requirement=point_requirement)
 
 
 @app.route('/insurance/template')
@@ -5545,6 +5584,98 @@ def partner_virtual_account():
             return jsonify({'success': False, 'message': '입금액은 0보다 큰 숫자여야 합니다.'}), 400
         
         def generate_account_number():
+            while True:
+                candidate = datetime.now(KST).strftime('%y%m%d') + str(uuid.uuid4().int)[-8:]
+                existing = db.session.query(VirtualAccount).filter(
+                    VirtualAccount.virtual_account_number == candidate
+                ).first()
+                if existing is None:
+                    return candidate
+        
+        # 기존 대기 중인 가상계좌 만료 처리
+        db.session.query(VirtualAccount).filter(
+            VirtualAccount.member_id == target_member.id,
+            VirtualAccount.status == '대기'
+        ).update({'status': '만료'}, synchronize_session=False)
+        
+        virtual_account_number = generate_account_number()
+        expiry_date = datetime.now(KST).date() + timedelta(days=3)
+        
+        virtual_account = VirtualAccount(
+            member_id=target_member.id,
+            partner_group_id=partner_group_id,
+            account_holder=account_holder,
+            bank_name=bank_name,
+            virtual_account_number=virtual_account_number,
+            deposit_amount=deposit_amount,
+            expiry_date=expiry_date,
+            status='대기'
+        )
+        db.session.add(virtual_account)
+        
+        if not safe_commit():
+            return jsonify({'success': False, 'message': '가상계좌 발급 중 오류가 발생했습니다.'}), 500
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'member_username': target_member.username,
+                'bank_name': bank_name,
+                'virtual_account_number': virtual_account_number,
+                'deposit_amount': deposit_amount,
+                'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+                'account_holder': account_holder
+            }
+        })
+    
+    except Exception as e:
+        try:
+            import sys
+            import traceback
+            sys.stderr.write(f"Virtual account issue error: {e}\n")
+            sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': '가상계좌 발급 중 오류가 발생했습니다.'}), 500
+
+@app.route('/virtual-account', methods=['POST'])
+@login_required
+def virtual_account():
+    """일반 회원용 가상계좌 발급"""
+    try:
+        ensure_initialized()
+        
+        data = request.get_json(silent=True) or request.form
+        
+        # 로그인한 회원 정보 확인
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
+        
+        partner_group_id = current_user.partner_group_id
+        if not partner_group_id:
+            return jsonify({'success': False, 'message': '파트너그룹 정보를 확인할 수 없습니다.'}), 400
+        
+        target_member = db.session.get(Member, current_user.id)
+        if target_member is None:
+            return jsonify({'success': False, 'message': '회원 정보를 확인할 수 없습니다.'}), 404
+        
+        account_holder = (data.get('account_holder') or '').strip()
+        bank_name = (data.get('bank_name') or '').strip()
+        deposit_amount_raw = (data.get('deposit_amount') or '').replace(',', '').strip()
+        
+        if not account_holder or not bank_name or not deposit_amount_raw:
+            return jsonify({'success': False, 'message': '입금주, 은행, 입금액은 필수입니다.'}), 400
+        
+        try:
+            deposit_amount = int(deposit_amount_raw)
+        except ValueError:
+            deposit_amount = 0
+        
+        if deposit_amount <= 0:
+            return jsonify({'success': False, 'message': '입금액은 0보다 큰 숫자여야 합니다.'}), 400
+        
+        def generate_account_number():
+            import uuid
             while True:
                 candidate = datetime.now(KST).strftime('%y%m%d') + str(uuid.uuid4().int)[-8:]
                 existing = db.session.query(VirtualAccount).filter(
