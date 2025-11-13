@@ -133,6 +133,21 @@ def migrate_database():
         print("  ✅ deposit_history 테이블 확인/생성 완료")
         
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deposit_request (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER NOT NULL,
+                partner_group_id INTEGER NOT NULL,
+                amount INTEGER NOT NULL,
+                status VARCHAR(32) DEFAULT 'requested',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                confirmed_at DATETIME,
+                FOREIGN KEY (member_id) REFERENCES member(id),
+                FOREIGN KEY (partner_group_id) REFERENCES partner_group(id)
+            )
+        """)
+        print("  ✅ deposit_request 테이블 확인/생성 완료")
+        
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS virtual_account (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 member_id INTEGER NOT NULL,

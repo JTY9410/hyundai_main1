@@ -704,6 +704,26 @@ def define_models():
             member = db.relationship('Member', backref='deposit_histories')
             partner_group = db.relationship('PartnerGroup', backref='deposit_histories')
 
+        class DepositRequest(ModelBase):
+            __tablename__ = 'deposit_request'
+
+            id = db.Column(db.Integer, primary_key=True)
+            member_id = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
+            partner_group_id = db.Column(db.Integer, db.ForeignKey('partner_group.id'), nullable=False)
+            amount = db.Column(db.Integer, nullable=False)
+            status = db.Column(db.String(32), default='requested')
+            created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST))
+            confirmed_at = db.Column(db.DateTime)
+
+            member = db.relationship('Member', backref='deposit_requests')
+            partner_group = db.relationship('PartnerGroup', backref='deposit_requests')
+
+            __table_args__ = (
+                Index('idx_deposit_request_partner_group', 'partner_group_id'),
+                Index('idx_deposit_request_member', 'member_id'),
+                Index('idx_deposit_request_status', 'status'),
+            )
+
         class PointAdjustment(ModelBase):
             __tablename__ = 'point_adjustment'
 
@@ -786,6 +806,10 @@ else:
             pass
 
     class DepositHistory:
+        id = None
+        pass
+
+    class DepositRequest:
         id = None
         pass
 
@@ -5374,6 +5398,41 @@ def partner_admin_point_management():
                         pass
                     flash('엑셀 다운로드 중 오류가 발생했습니다.', 'danger')
                     return redirect(url_for('partner_admin_point_management'))
+
+            elif action == 'confirm_deposit_request':
+                try:
+                    request_id = request.form.get('deposit_request_id')
+                    if not request_id:
+                        flash('입금신청 정보를 찾을 수 없습니다.', 'warning')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    deposit_request = db.session.get(DepositRequest, int(request_id))
+                    if not deposit_request or deposit_request.partner_group_id != partner_group_id:
+                        flash('입금신청 정보를 찾을 수 없습니다.', 'warning')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    deposit_request.status = 'confirmed'
+                    deposit_request.confirmed_at = datetime.now(KST)
+                    
+                    if not safe_commit():
+                        flash('입금신청 확인 처리 중 오류가 발생했습니다.', 'danger')
+                    else:
+                        flash('입금신청을 확인 처리했습니다.', 'success')
+                except Exception as e:
+                    try:
+                        import sys
+                        import traceback
+                        sys.stderr.write(f"Deposit request confirm error: {e}\n")
+                        sys.stderr.write(f"Deposit request confirm traceback: {traceback.format_exc()}\n")
+                    except Exception:
+                        pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                    flash('입금신청 확인 처리 중 오류가 발생했습니다.', 'danger')
+
+                return redirect(url_for('partner_admin_point_management'))
         
         members = db.session.query(Member).filter(
             Member.partner_group_id == partner_group_id,
@@ -5413,12 +5472,18 @@ def partner_admin_point_management():
                 'last_adjustment_at': last_adjustment.created_at if last_adjustment else None
             })
         
+        pending_deposit_requests = db.session.query(DepositRequest).filter(
+            DepositRequest.partner_group_id == partner_group_id,
+            DepositRequest.status == 'requested'
+        ).order_by(DepositRequest.created_at.desc()).all()
+        
         return render_template(
             'partner/admin_point_management.html',
             partner_group_id=partner_group_id,
             partner_group_name=partner_group_name,
             members=members,
-            member_rows=member_rows
+            member_rows=member_rows,
+            deposit_requests=pending_deposit_requests
         )
     
     except Exception as e:
@@ -5544,6 +5609,52 @@ def partner_admin_point_history(member_id):
             pass
         flash('포인트 내역 조회 중 오류가 발생했습니다.', 'danger')
         return redirect(url_for('partner_admin_point_management'))
+
+@app.route('/partner/admin/deposit-summary')
+def partner_admin_deposit_summary():
+    """입금신청/확인 현황 요약"""
+    try:
+        ensure_initialized()
+        if 'user_type' not in session or session['user_type'] != 'partner_admin':
+            return jsonify({'success': False, 'message': '접근 권한이 없습니다.'}), 403
+        
+        partner_group_id = session.get('partner_group_id')
+        if not partner_group_id:
+            return jsonify({'success': False, 'message': '파트너그룹 정보를 확인할 수 없습니다.'}), 400
+        
+        requests = db.session.query(DepositRequest, Member).join(Member, DepositRequest.member_id == Member.id).filter(
+            DepositRequest.partner_group_id == partner_group_id
+        ).order_by(DepositRequest.created_at.desc()).all()
+        
+        summary = {}
+        for deposit_request, member in requests:
+            month_key = deposit_request.created_at.strftime('%Y-%m') if deposit_request.created_at else '미상'
+            entry = {
+                'company_name': member.company_name or member.username or '-',
+                'amount': deposit_request.amount,
+                'status': '입금신청' if deposit_request.status == 'requested' else '확인',
+                'requested_at': deposit_request.created_at.strftime('%Y-%m-%d %H:%M') if deposit_request.created_at else '',
+                'confirmed_at': deposit_request.confirmed_at.strftime('%Y-%m-%d %H:%M') if deposit_request.confirmed_at else ''
+            }
+            summary.setdefault(month_key, []).append(entry)
+        
+        # 정렬 (최근 월부터)
+        sorted_summary = [
+            {'month': month, 'items': summary[month]}
+            for month in sorted(summary.keys(), reverse=True)
+        ]
+        
+        return jsonify({'success': True, 'data': sorted_summary})
+    
+    except Exception as e:
+        try:
+            import sys
+            import traceback
+            sys.stderr.write(f"Deposit summary error: {e}\n")
+            sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': '입금현황 요약을 불러오는 중 오류가 발생했습니다.'}), 500
 
 @app.route('/partner/virtual-account', methods=['POST'])
 def partner_virtual_account():
@@ -5755,6 +5866,58 @@ def virtual_account():
         except Exception:
             pass
         return jsonify({'success': False, 'message': '가상계좌 발급 중 오류가 발생했습니다.'}), 500
+
+@app.route('/deposit-request', methods=['POST'])
+@login_required
+def create_deposit_request():
+    """멤버가 입금 안내를 요청하면 관리자 검토를 위해 저장"""
+    try:
+        ensure_initialized()
+        if db is None:
+            return jsonify({'success': False, 'message': '데이터베이스가 초기화되지 않았습니다.'}), 500
+
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'message': '로그인이 필요합니다.'}), 401
+
+        partner_group_id = getattr(current_user, 'partner_group_id', None)
+        if not partner_group_id:
+            return jsonify({'success': False, 'message': '파트너그룹 정보를 확인할 수 없습니다.'}), 400
+
+        data = request.get_json(silent=True) or request.form
+        amount_raw = (data.get('amount') or '').replace(',', '').strip()
+
+        try:
+            amount = int(amount_raw)
+        except (TypeError, ValueError):
+            amount = 0
+
+        if amount < 100000 or amount > 2000000 or amount % 100000 != 0:
+            return jsonify({'success': False, 'message': '입금액은 10만원부터 200만원까지 10만원 단위로 선택해주세요.'}), 400
+
+        # 기존 대기중 요청이 있다면 그대로 두고 추가 저장
+        deposit_request = DepositRequest(
+            member_id=current_user.id,
+            partner_group_id=partner_group_id,
+            amount=amount,
+            status='requested',
+        )
+        db.session.add(deposit_request)
+
+        if not safe_commit():
+            return jsonify({'success': False, 'message': '입금신청 저장 중 오류가 발생했습니다.'}), 500
+
+        return jsonify({'success': True, 'message': '입금신청이 접수되었습니다.'})
+
+    except Exception as e:
+        try:
+            import sys
+            import traceback
+            sys.stderr.write(f"Deposit request error: {e}\n")
+            sys.stderr.write(f"Traceback: {traceback.format_exc()}\n")
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': '입금신청 처리 중 오류가 발생했습니다.'}), 500
 
 # 파트너그룹 회원가입승인 페이지
 @app.route('/partner/admin/member-approval', methods=['GET', 'POST'])
@@ -6144,7 +6307,7 @@ def partner_admin_member_approval():
             partner_group_id=partner_group_id,
             role='member'
         ).order_by(Member.created_at.desc()).all()
-        
+
         return render_template('partner/admin_member_approval.html',
                              members=members,
                              partner_group_name=partner_group_name,

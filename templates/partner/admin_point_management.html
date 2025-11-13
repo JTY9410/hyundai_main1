@@ -133,6 +133,79 @@
       </div>
     </div>
 
+    <!-- Deposit Request Section -->
+    <div class="glass rounded-2xl border border-white/50 backdrop-blur-xl overflow-hidden mb-10">
+      <div class="px-6 py-4 bg-gradient-to-r from-rose-500 via-red-500 to-orange-400 flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-bold text-white flex items-center">
+            <i class="bi bi-cash-coin mr-2"></i>입금신청 현황
+          </h2>
+          <p class="text-sm text-white/80">회원사에서 접수한 입금신청을 확인해주세요.</p>
+        </div>
+        <button type="button"
+                class="inline-flex items-center px-4 py-2 bg-white/20 text-white font-medium rounded-lg border border-white/40 hover:bg-white/30 transition-all duration-200"
+                onclick="openDepositSummaryModal()">
+          <i class="bi bi-graph-up-arrow mr-2"></i>전체현황
+        </button>
+      </div>
+      <div class="bg-white/70">
+        {% if deposit_requests %}
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">신청일시</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">상사명</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">아이디</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">입금액</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">상태</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">작업</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for request in deposit_requests %}
+              <tr class="hover:bg-rose-50/60 transition-colors duration-150">
+                <td class="px-4 py-3 text-sm text-gray-700">
+                  {{ request.created_at.strftime('%Y-%m-%d %H:%M') if request.created_at else '-' }}
+                </td>
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                  {{ request.member.company_name or '-' }}
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">
+                  {{ request.member.username or '-' }}
+                </td>
+                <td class="px-4 py-3 text-sm font-semibold text-red-600">
+                  {{ "{:,.0f}".format(request.amount) }}원
+                </td>
+                <td class="px-4 py-3 text-sm">
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                    <i class="bi bi-dot text-lg mr-1"></i>입금신청
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-sm text-center">
+                  <form method="post" class="inline-flex" onsubmit="return confirm('해당 입금신청을 확인 처리하시겠습니까?');">
+                    <input type="hidden" name="action" value="confirm_deposit_request">
+                    <input type="hidden" name="deposit_request_id" value="{{ request.id }}">
+                    <button type="submit"
+                            class="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-medium rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all duration-200">
+                      <i class="bi bi-check2-circle mr-1"></i>확인
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="px-6 py-10 text-center text-gray-500">
+          <i class="bi bi-inbox text-4xl mb-3 block text-gray-400"></i>
+          현재 대기 중인 입금신청이 없습니다.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
     <!-- Member Table -->
     <div class="glass rounded-2xl border border-white/50 backdrop-blur-xl overflow-hidden">
       <div class="overflow-x-auto">
@@ -225,6 +298,37 @@
             {% endfor %}
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Deposit Summary Modal -->
+<div id="deposit-summary-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeDepositSummaryModal()"></div>
+  <div class="relative max-w-4xl mx-auto mt-12 bg-white rounded-2xl shadow-2xl overflow-hidden animate-[fade-in_0.25s_ease-out]">
+    <div class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 text-white">
+      <div>
+        <h3 class="text-lg font-bold flex items-center">
+          <i class="bi bi-calendar-week mr-2"></i>입금신청 전체 현황
+        </h3>
+        <p class="text-xs text-white/80 mt-1">최근 입금신청과 확인 현황을 1개월 단위로 확인할 수 있습니다.</p>
+      </div>
+      <button type="button" class="text-white/80 hover:text-white text-xl" onclick="closeDepositSummaryModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="px-6 py-5">
+      <div id="deposit-summary-loading" class="py-12 text-center text-gray-500 hidden">
+        <i class="bi bi-arrow-repeat animate-spin text-3xl mb-3 block text-indigo-500"></i>
+        데이터를 불러오는 중입니다...
+      </div>
+      <div id="deposit-summary-empty" class="py-12 text-center text-gray-500 hidden">
+        <i class="bi bi-inbox text-4xl mb-3 block text-gray-400"></i>
+        표시할 입금신청 내역이 없습니다.
+      </div>
+      <div id="deposit-summary-content" class="space-y-6 max-h-[70vh] overflow-y-auto">
+        <!-- 동적 컨텐츠 -->
       </div>
     </div>
   </div>
@@ -393,6 +497,115 @@ function viewPointHistory(memberId, username, companyName) {
   // 새 창에서 포인트 내역 페이지 열기
   const url = `/partner/admin/point-history/${memberId}`;
   window.open(url, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+}
+
+// 입금신청 전체현황 모달
+const depositSummaryModal = document.getElementById('deposit-summary-modal');
+const depositSummaryContent = document.getElementById('deposit-summary-content');
+const depositSummaryLoading = document.getElementById('deposit-summary-loading');
+const depositSummaryEmpty = document.getElementById('deposit-summary-empty');
+
+function openDepositSummaryModal() {
+  if (depositSummaryModal) {
+    depositSummaryModal.classList.remove('hidden');
+    fetchDepositSummary();
+  }
+}
+
+function closeDepositSummaryModal() {
+  if (depositSummaryModal) {
+    depositSummaryModal.classList.add('hidden');
+  }
+}
+
+async function fetchDepositSummary() {
+  if (!depositSummaryContent || !depositSummaryLoading) return;
+
+  depositSummaryContent.innerHTML = '';
+  depositSummaryLoading.classList.remove('hidden');
+  if (depositSummaryEmpty) depositSummaryEmpty.classList.add('hidden');
+
+  try {
+    const response = await fetch('/partner/admin/deposit-summary', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || '입금신청 현황을 불러오는 중 오류가 발생했습니다.');
+    }
+
+    const summaryData = result.data || [];
+    if (summaryData.length === 0) {
+      if (depositSummaryEmpty) depositSummaryEmpty.classList.remove('hidden');
+      return;
+    }
+
+    summaryData.forEach((monthData) => {
+      const monthSection = document.createElement('div');
+      monthSection.className = 'bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm';
+      const header = document.createElement('div');
+      header.className = 'px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between';
+      header.innerHTML = `
+        <div class="flex items-center">
+          <span class="text-base font-semibold text-gray-800 mr-2">${monthData.month}</span>
+          <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+            총 ${monthData.items.length}건
+          </span>
+        </div>
+      `;
+
+      const tableWrapper = document.createElement('div');
+      tableWrapper.className = 'overflow-x-auto';
+      const table = document.createElement('table');
+      table.className = 'min-w-full divide-y divide-gray-200';
+      table.innerHTML = `
+        <thead class="bg-white">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">신청일시</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">상사명</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">입금액</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">상태</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">확인일시</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          ${monthData.items.map(item => `
+            <tr class="hover:bg-gray-50 transition-colors duration-150">
+              <td class="px-4 py-3 text-sm text-gray-700">${item.requested_at || '-'}</td>
+              <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.company_name || '-'}</td>
+              <td class="px-4 py-3 text-sm font-semibold text-gray-800">${Number(item.amount || 0).toLocaleString()}원</td>
+              <td class="px-4 py-3 text-sm">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${item.status === '입금신청' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}">
+                  ${item.status}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-600">${item.confirmed_at || (item.status === '입금신청' ? '-' : '확인됨')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      `;
+
+      tableWrapper.appendChild(table);
+      monthSection.appendChild(header);
+      monthSection.appendChild(tableWrapper);
+      depositSummaryContent.appendChild(monthSection);
+    });
+
+  } catch (error) {
+    console.error('Deposit summary error:', error);
+    if (depositSummaryEmpty) {
+      const message = error.message || '입금신청 현황을 불러오는 중 오류가 발생했습니다.';
+      depositSummaryEmpty.classList.remove('hidden');
+      depositSummaryEmpty.innerHTML = `
+        <i class="bi bi-exclamation-triangle text-4xl mb-3 block text-red-500"></i>
+        ${message}
+      `;
+    }
+  } finally {
+    depositSummaryLoading.classList.add('hidden');
+  }
 }
 </script>
 {% endblock %}
