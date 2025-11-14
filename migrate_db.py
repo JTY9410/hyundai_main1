@@ -138,6 +138,8 @@ def migrate_database():
                 member_id INTEGER NOT NULL,
                 partner_group_id INTEGER NOT NULL,
                 amount INTEGER NOT NULL,
+                account_holder VARCHAR(128) NOT NULL DEFAULT '',
+                bank_name VARCHAR(128) NOT NULL DEFAULT '',
                 status VARCHAR(32) DEFAULT 'requested',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 confirmed_at DATETIME,
@@ -146,6 +148,21 @@ def migrate_database():
             )
         """)
         print("  ✅ deposit_request 테이블 확인/생성 완료")
+        
+        # deposit_request 테이블에 account_holder, bank_name 컬럼 추가 (기존 테이블이 있는 경우)
+        try:
+            cursor.execute("PRAGMA table_info(deposit_request)")
+            existing_columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'account_holder' not in existing_columns:
+                cursor.execute("ALTER TABLE deposit_request ADD COLUMN account_holder VARCHAR(128) NOT NULL DEFAULT ''")
+                print("  ✅ deposit_request.account_holder 컬럼 추가됨")
+            
+            if 'bank_name' not in existing_columns:
+                cursor.execute("ALTER TABLE deposit_request ADD COLUMN bank_name VARCHAR(128) NOT NULL DEFAULT ''")
+                print("  ✅ deposit_request.bank_name 컬럼 추가됨")
+        except Exception as e:
+            print(f"  ⚠️ deposit_request 컬럼 추가 중 오류 (무시 가능): {e}")
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS virtual_account (

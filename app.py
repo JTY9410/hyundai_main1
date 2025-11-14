@@ -711,6 +711,8 @@ def define_models():
             member_id = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
             partner_group_id = db.Column(db.Integer, db.ForeignKey('partner_group.id'), nullable=False)
             amount = db.Column(db.Integer, nullable=False)
+            account_holder = db.Column(db.String(128), nullable=False)
+            bank_name = db.Column(db.String(128), nullable=False)
             status = db.Column(db.String(32), default='requested')
             created_at = db.Column(db.DateTime, default=lambda: datetime.now(KST))
             confirmed_at = db.Column(db.DateTime)
@@ -5412,13 +5414,50 @@ def partner_admin_point_management():
                         flash('입금신청 정보를 찾을 수 없습니다.', 'warning')
                         return redirect(url_for('partner_admin_point_management'))
                     
+                    if deposit_request.status == 'confirmed':
+                        flash('이미 확인 처리된 입금신청입니다.', 'warning')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    # 회원 정보 조회
+                    member = db.session.get(Member, deposit_request.member_id)
+                    if not member:
+                        flash('회원 정보를 찾을 수 없습니다.', 'danger')
+                        return redirect(url_for('partner_admin_point_management'))
+                    
+                    # 입금 내역 기록
+                    deposit_history = DepositHistory(
+                        member_id=member.id,
+                        partner_group_id=partner_group_id,
+                        bank_name=deposit_request.bank_name,
+                        account_number='249-13-000395-8',  # 부산은행 계좌번호
+                        deposit_amount=deposit_request.amount,
+                        deposit_date=datetime.now(KST)
+                    )
+                    db.session.add(deposit_history)
+                    
+                    # 포인트 증가
+                    current_balance = member.point_balance or 0
+                    member.point_balance = current_balance + deposit_request.amount
+                    
+                    # 포인트 조정 내역 기록
+                    point_adjustment = PointAdjustment(
+                        member_id=member.id,
+                        partner_group_id=partner_group_id,
+                        decrease_amount=0,
+                        increase_amount=deposit_request.amount,
+                        change_amount=deposit_request.amount,
+                        note=f'입금신청 확인 (입금자: {deposit_request.account_holder}, 은행: {deposit_request.bank_name})'
+                    )
+                    db.session.add(point_adjustment)
+                    
+                    # 입금신청 상태 업데이트
                     deposit_request.status = 'confirmed'
                     deposit_request.confirmed_at = datetime.now(KST)
                     
                     if not safe_commit():
                         flash('입금신청 확인 처리 중 오류가 발생했습니다.', 'danger')
                     else:
-                        flash('입금신청을 확인 처리했습니다.', 'success')
+                        flash(f'입금신청을 확인 처리했습니다. 포인트 {deposit_request.amount:,}원이 반영되었습니다.', 'success')
                 except Exception as e:
                     try:
                         import sys
@@ -5902,11 +5941,22 @@ def create_deposit_request():
         if amount < 100000 or amount > 2000000 or amount % 100000 != 0:
             return jsonify({'success': False, 'message': '입금액은 10만원부터 200만원까지 10만원 단위로 선택해주세요.'}), 400
 
+        account_holder = (data.get('account_holder') or '').strip()
+        bank_name = (data.get('bank_name') or '').strip()
+        
+        if not account_holder:
+            return jsonify({'success': False, 'message': '입금자명을 입력해주세요.'}), 400
+        
+        if not bank_name:
+            return jsonify({'success': False, 'message': '입금은행을 입력해주세요.'}), 400
+
         # 기존 대기중 요청이 있다면 그대로 두고 추가 저장
         deposit_request = DepositRequest(
             member_id=current_user.id,
             partner_group_id=partner_group_id,
             amount=amount,
+            account_holder=account_holder,
+            bank_name=bank_name,
             status='requested',
         )
         db.session.add(deposit_request)

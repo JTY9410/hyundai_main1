@@ -157,6 +157,8 @@
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">신청일시</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">상사명</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">아이디</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">입금자명</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">입금은행</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">입금액</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">상태</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">작업</th>
@@ -173,6 +175,12 @@
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-700">
                   {{ request.member.username or '-' }}
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">
+                  {{ request.account_holder or '-' }}
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">
+                  {{ request.bank_name or '-' }}
                 </td>
                 <td class="px-4 py-3 text-sm font-semibold text-red-600">
                   {{ "{:,.0f}".format(request.amount) }}원
